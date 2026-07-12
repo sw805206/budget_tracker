@@ -1,58 +1,163 @@
-# Master Budget — WORKFLOW catalog
+v0.3 | 2026-07-12
 
-**v0.1 — last updated 2026-07-08**
-Catalog of reusable **workflows** (graphs of workflow steps). Each entry is tagged; a user can adopt an existing workflow instead of building one. Design-phase scaffold — converges to config data. Model defined in SCOPE.md §3.
+# WORKFLOW.md — WF-001 (MVP Phase 1)
 
-**Legend**
-- `step` = a node (workflow step).
-- `─▶` sequential link (pass-through; optional UoM convert; **no split**).
-- `fork[allocate]` = split an upstream quantity **by %** across branches.
-- `fork[sum]` = independent child lines that **add** to the parent.
-- **Consolidation** = sum of all step P&Ls (topology-independent).
-- Scope tags: `[global]` / `[industry]` / `[subgroup]` / `[client]`.
+Status: working draft. Faithful formalization of the WF-001 BRD — structure, filled `[explain]` gaps, and unambiguous logic. Not a redesign. Governed by SCOPE.md v0.6.
 
----
+## 0 — Identity
+- **Workflow ID:** WF-001
+- **Phase:** MVP Phase 1 (current)
+- **Hierarchy:** Industry → Group → Subgroup → Customer = Logistics → Warehousing → Fulfillment Center → SP
+- **Planning mechanism:** Topdown
+- **Reconciliation mechanism:** n/a (Phase 1)
+- **Nature of top-down:** broad-stroke, aggregated ballpark. Simple logic by design. (Bottom-up per-step input/output/conversion/logic engines are future work.)
 
-## WF-001 — Fulfillment Center, top-down (Phase 1)
+## 1 — Navigation
+Landing · Plans · Actuals · Master Data · Account.
 
-- **Tags:** `industry:logistics` · `group:warehousing` · `subgroup:fulfillment-center` · `grain:top-down` · `mode:demand-driven` · `window:free` · `phase:1`
-- **Scope level:** `[subgroup]` — generic to fulfillment centers; SP adopts it and enters data.
-- **Purpose:** fast, aggregated P&L + cashflow ballpark (top-down principle, SCOPE §5). Minimize data entry; derive costs from ratios.
+## 2 — Landing
+The user sees: current plan, actual, LE; and a general Planning + Reconciliation process flow diagram.
 
-### Graph
+## 3 — Plans
 
-Root: **Revenue** `[input: annual + seasonality, by stream]` — streams: *Warehouse operations*, *Delivery services*.
+### 3.1 Landing / Dashboard
+- **Available workflow cards** → button **Create New** (select one to create a new plan).
+- **Past plans** → button **Copy Existing** (copy from an existing Published plan).
+- Plan stages: **Published** (official) | **Draft** (in progress). (Discard/delete per SCOPE §3.)
 
-**COGS path (sequential):**
-```
-Revenue ──COGS──▶ Warehouse ──▶ Delivery
-                  %GP            %GP
-                  fork[allocate] fork[allocate]
-                  ├ Asset        ├ B2B
-                  └ Brokerage    └ B2C
-```
-- **Warehouse** — cost = f(revenue, GP%); `fork[allocate]` by asset/brokerage share:
-  - **Asset** → Warehouse Fixed (not volume-driven) + **Upfront Asset Spend** (capex → **cashflow only, not P&L**)
-  - **Brokerage** → Warehouse Variable (tie to revenue via GP%)
-- **Delivery** — sequential after Warehouse; cost = variable via GP%; `fork[allocate]` B2B / B2C `[bottom-up detail deferred]`
+### 3.2 The 4 steps
+`Planning Version → Planning Parameters → Planning Assumptions → Results`
 
-**OPEX path (parallel sum):**
-```
-Revenue ──OPEX──▶ Labor + Office + Entity + T&E
-```
-- **Labor** `fork[sum]`: Sales & CSR (fixed) + Backoffice (fixed)
-- **Office** `fork[sum]`: Office Fixed + Office Variable `[driver TBD]`
-- **Entity** — Entity & Licenses/Permits (fixed)
-- **T&E** — Travel & Entertainment (fixed)
+### 3.3 Planning Version
+For both Create New and Copy Existing:
+- User enters a **file name** (default `WF-###-yyyymmdd`).
+- User selects a **start month** (default = current month).
 
-### Engine (top-down)
-seasonality → monthly revenue · GP% → variable cost · allocate fork → asset (fixed + capex) vs brokerage (variable) · sum fixed lines · timing terms → cashflow (direct method) · capex → cash only · consolidate all step P&Ls.
+### 3.4 Planning Parameters (section 2)
+- **Create New** → Q&A session → summary page → **NEXT** confirms.
+- **Copy Existing** → summary page → edit → **NEXT** confirms.
 
-### Inputs
-revenue by stream (annual + seasonality) · GP% per variable line · fixed-cost lines · capex · asset/brokerage allocation % · AR/AP timing terms.
+WF-001 parameters:
+1. **[enter]** Planning horizon — # of years, default 3 (CY+3).
+2. **[multi-select]** Warehouse Operations: (1) Asset-based, (2) Brokerage. `[explain shown to user]`
+3. **[multi-select]** Delivery Options: (1) Client Pickup, (2) B2B/Trucking, (3) B2C/Courier. `[explain shown to user]`
+4. **[enter]** Beginning Cash $.
+5. **[enter]** Target on-hand Cash ($ or # months of costs).
+- **If parameter 2 or 3 has >1 selection**, ask **revenue allocation %** to each flow. (In top-down, the fork operation **prioritize is not applicable**; allocation only.)
 
-### Outputs
-aggregated **P&L** + **cashflow** (table + graph); target-cash reference line `[role TBD]`.
+### 3.5 Planning Assumptions
+Two tabs — **Revenue** and **Cost**.
+- **Create New** → blank pages (Cost tab: prepopulated with "commonly used" descriptions).
+- **Copy Existing** → carry over the existing plan's numbers.
+- Uses the current plan's planning parameters.
+- **If an operational step is a single selection, the irrelevant bucket is not shown.**
 
-### Deferred (bottom-up, not in ph1)
-revenue breakdown (Inbound Receive, Storage, Outbound Pick & Pack, Delivery, Value-added) · Delivery B2B/B2C cost split · granular mapping.
+#### 3.5.1 Revenue assumption page
+How it works: the user builds annual revenue per client per year, plus a per-client 12-month seasonality curve; the engine breaks annual $ into months via seasonality, with CY treated as a partial year (start month → December).
+
+User inputs:
+1. **Client** (select from Entity).
+2. **CY … CY+x annual revenue.** `CY* = enter revenue for the start month → December only; do not include past months' forecast.`
+3. **Revenue seasonality** — 12 monthly % (sum 100%). `Seasonality** = existing clients' CY+1 revenue-weighted seasonality is the default for a new client (can be manually overwritten).`
+- **Total row** = sum of clients (revenue); weighted-average of clients (seasonality).
+
+**CY partial-year mechanism (worked example, Start 2026-03):**
+- Entered CY* is the actual Mar–Dec total. Full-year (CY+1…) entries are Jan–Dec totals.
+- The 12-month seasonality curve is **never renormalized.** Active CY months = Mar–Dec.
+- Implied full-year CY = CY* ÷ (sum of active-month weights). Monthly figure = implied full-year × that month's weight.
+- Example: Client 1 CY* = $5,000, active Mar–Dec weights sum to (1 − Jan − Feb). Implied full-year = **$6,024**; each month = $6,024 × its weight; Mar–Dec sum back to $5,000. (Client 2: $8,700 → $11,154.)
+
+#### 3.5.2 Cost assumption page
+How it works: the user lists cost lines (prepopulated with common descriptions), each tagged by operational step, category, type, timing, and UOM; the engine expands each line across months per its timing and computes $ (or GP%-derived) cost.
+
+User inputs:
+1. Add/edit/delete **description**.
+2. Select **category** and **type**. (Category ∈ COGS / OPEX / CAPEX / Tax; type per the catalog, e.g. Amortization/Depreciation under CAPEX.)
+3. **Vendor** (select from Entity).
+4. **Timing** — one time | annual | quarterly | monthly. For monthly, default start/finish = start month … December of CY+x.
+5. **UOM** — predefined to **$** or **GP%**.
+6. Enter the **yyyy-mm** and the **values**.
+- **If an operational step is a single selection, the irrelevant bucket is not shown.**
+
+**Category / type catalog (WF-001, prepopulated "commonly used"):**
+- **Asset-Based:** Deposit (CAPEX/Amortization, One-Time, $); Asset-Purchase (CAPEX/Depreciation, One-Time, $); Rental, Utilities, Insurance, Packaging/MRO, Office Expenses, Ops Lead, Direct Labor, Others (COGS, Monthly, $).
+- **Brokerage:** Operating Cost (COGS, Monthly, GP%); Operating Cost (COGS, Monthly, $); Others (COGS, Monthly, $).
+- **Delivery:** Self-Pickup, B2B Trucking, B2C/Courier (COGS, Monthly, GP%); Others (COGS, Monthly, $).
+- **Office Expenses (OPEX):** Entity & Licences (Annual, $); Office Rental, Outsourced Services, Office Supplies, Travel & Entertainment, Others (Monthly, $).
+- **Tax (category = Tax, not OPEX):** Tax (Quarterly, $). Excluded from EBITDA; included in cashflow.
+- **Overhead (OPEX):** Sales Reps, Customer Service, Tech Team, Backoffice, Others (Monthly, $).
+- **Commission (OPEX):** Sales Commission (Monthly, GP%).
+- **Others (OPEX):** Others (Monthly, $).
+
+### 3.6 Results
+After both tabs are entered, the user clicks **NEXT** to generate the P&L report.
+
+## 4 — Computing Logic
+
+### 4.1 Revenue
+- Broken down to monthly using annual $ × seasonality (CY partial per §3.5.1).
+- Aggregated to annual / quarterly / monthly per user selection.
+
+### 4.2 Fork operations
+- **Prioritize is not applicable** for top-down.
+- Use the **revenue allocation %** to assign revenue to asset-based vs. brokerage, and to pickup / B2B / B2C.
+
+### 4.3 Cost
+- **Annual** timing: apply the $ or GP% at the entered yyyy-mm, then repeat every 12 months.
+- **Quarterly** timing: apply at the entered yyyy-mm, then repeat every 3 months.
+- **Monthly** timing: apply from the start yyyy-mm through the end yyyy-mm.
+- **GP% value:** cost = **allocated revenue of the month × (1 − GP%)**. (GP% applies to that flow's allocated revenue.)
+- **CAPEX (incl. A&D) is excluded from the P&L** (EBITDA). See §4.5.
+
+### 4.4 P&L (EBITDA)
+- **EBITDA bottom line = Revenue − COGS − OPEX.** (OPEX subtotal is clean — Tax is its own category, not in OPEX.)
+- **Excludes** CAPEX and Tax (both are their own categories; user-entered but not in EBITDA).
+- No payment-term offset in the P&L (P&L is recognition-timed, not cash-timed).
+
+### 4.5 Cashflow (pure cash, not GAAP)
+- **Includes CAPEX and Tax** — every cash-moving item, at the moment cash moves. No accounting spread/accrual.
+- Revenue and costs are offset by **payment anchor + months**.
+- **Top-down simplification:** the anchor is simplified to **Revenue's anchor**; all items are treated with the same anchor as revenue. **Entity payment terms are captured in Master Data but NOT used in top-down cashflow** — they wait for bottom-up / reconciliation. This must be **spelled out to the user**.
+- Per time bucket: **Beginning Cash + Net Cash = Ending Cash.**
+
+## 5 — Report Display
+- User selects **annual / quarterly / monthly** display.
+- **CY is a partial-year number.**
+- Numbers **and** graphs.
+- **Single time bucket** and **cumulative** views.
+- P&L sample (illustrative): Profit(=EBITDA) / Cumulative rows; Revenue / Costs / COGS / OPEX rows across CY…CY+3.
+- Cashflow sample: `[layout TBD — mirror P&L display with Beginning/Net/Ending cash]`.
+
+## 6 — Master Data — Entity
+The user adds/edits/deletes entity information. The Entity table serves both planning and **future reconciliation**.
+- **Entity ID** — autogenerated.
+- **Entity name*** — manual, changeable anytime, duplicate-checked.
+- **Type*** — client, vendor, government, employee, contractor, others.
+- **Payment Flow*** — AR (revenue/income) | AP (cost/spending) | Passthrough.
+- **Payment Term*** — select payment anchor + # of days (default = Statement + 30). Anchor options: Sales Order, Statement, Net, Arrival, Departure.
+- **mappedID** — placeholder (future).
+- **Currency*** — placeholder (future), default USD.
+- **Entity Information** — placeholder (future).
+- **Tags** — manual.
+- **Internal POC** — placeholder (future).
+- **Comments.**
+
+Behaviors:
+- View entity card; view entity list (table); download file; download template and upload via template.
+- The user can **add an entity from the assumption page** — it autogenerates an Entity record with critical fields to complete.
+- A plan **cannot be Published until all mandatory Master Data fields are entered.**
+- Entity master-data changes impact **Draft and future plans, not Published plans.**
+
+## 7 — Account (global settings)
+- Language · Time zone · Currency.
+- **Ph1/V1 = default** (USD / en / …). Future = user selection + conversion.
+
+## 8 — Open items
+- `[TBD]` Cashflow sample display layout (§5).
+- `[DECIDED]` Tax is its own category (not inside OPEX); excluded from EBITDA, included in cashflow (§3.5.2, §4.4).
+- `[TBD]` `[explain]` copy for Warehouse Operations and Delivery Options parameters (§3.4).
+- `[TBD]` Revenue/Cost assumption page `[explain how it works]` user-facing copy.
+
+## 9 — Changelog
+- **v0.3 (2026-07-12):** Tax moved to its own category (out of OPEX); category set now COGS / OPEX / CAPEX / Tax. OPEX subtotal clean. Dropped hh:mm from version line.
+- **v0.2 (2026-07-10):** Formalized from the WF-001 BRD. Filled logic gaps; made category/type catalog explicit; stated CY partial-year mechanism with worked example; stated EBITDA vs cashflow membership (CAPEX/Tax cashflow-only); recorded top-down single-anchor simplification and GP% cost mechanic; captured Entity master-data rules.
