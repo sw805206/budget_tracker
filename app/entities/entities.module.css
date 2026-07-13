@@ -1,0 +1,241 @@
+/* Design-light, functional styling for the Entity Master Data screens.
+   Neutral colors + translucent borders so it reads on the default light/dark
+   background from globals.css. No design system (STYLE.md deferred, SCOPE §15). */
+
+.page {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.h1 {
+  font-size: 1.5rem;
+  font-weight: 650;
+  margin: 0;
+}
+
+.breadcrumb {
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+}
+.breadcrumb a {
+  color: inherit;
+  opacity: 0.7;
+  text-decoration: none;
+}
+.breadcrumb a:hover {
+  opacity: 1;
+}
+
+.empty {
+  opacity: 0.7;
+  padding: 2rem 0;
+}
+
+/* ── Table ─────────────────────────────────────────────────────────────── */
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid rgba(128, 128, 128, 0.25);
+  border-radius: 10px;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.table th,
+.table td {
+  text-align: left;
+  padding: 0.7rem 0.85rem;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.18);
+  white-space: nowrap;
+}
+.table th {
+  font-weight: 600;
+  opacity: 0.65;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+.table tbody tr:hover {
+  background: rgba(128, 128, 128, 0.06);
+}
+.rowLink {
+  color: inherit;
+  font-weight: 550;
+  text-decoration: none;
+}
+.rowLink:hover {
+  text-decoration: underline;
+}
+.rowActions {
+  display: flex;
+  gap: 0.85rem;
+}
+.rowActions a {
+  color: inherit;
+  opacity: 0.7;
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+.rowActions a:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+/* ── Buttons ───────────────────────────────────────────────────────────── */
+.primary,
+.secondary,
+.danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 0.95rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 550;
+  cursor: pointer;
+  text-decoration: none;
+  border: 1px solid transparent;
+  font-family: inherit;
+}
+.primary {
+  background: #2563eb;
+  color: #fff;
+}
+.primary:hover {
+  background: #1d4ed8;
+}
+.primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.secondary {
+  background: transparent;
+  color: inherit;
+  border-color: rgba(128, 128, 128, 0.4);
+}
+.secondary:hover {
+  background: rgba(128, 128, 128, 0.1);
+}
+.danger {
+  background: transparent;
+  color: #dc2626;
+  border-color: rgba(220, 38, 38, 0.5);
+}
+.danger:hover {
+  background: rgba(220, 38, 38, 0.1);
+}
+.danger:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ── Form ──────────────────────────────────────────────────────────────── */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  max-width: 520px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  opacity: 0.85;
+}
+.req {
+  color: #dc2626;
+}
+.input {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+  background: rgba(128, 128, 128, 0.06);
+  color: inherit;
+  font-size: 0.92rem;
+  font-family: inherit;
+}
+.input:focus {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+.fieldError {
+  border-color: #dc2626;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.daysInput {
+  width: 90px;
+}
+.plus,
+.suffix {
+  opacity: 0.7;
+  font-size: 0.9rem;
+}
+.warn {
+  color: #b45309;
+  font-size: 0.82rem;
+}
+.note {
+  font-size: 0.82rem;
+  opacity: 0.65;
+  margin: 0;
+}
+.error {
+  color: #dc2626;
+  font-size: 0.88rem;
+  margin: 0;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/* ── Detail card ───────────────────────────────────────────────────────── */
+.card {
+  border: 1px solid rgba(128, 128, 128, 0.25);
+  border-radius: 10px;
+  margin: 0;
+  overflow: hidden;
+}
+.cardRow {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+}
+.cardRow:last-child {
+  border-bottom: none;
+}
+.dt {
+  margin: 0;
+  font-weight: 600;
+  opacity: 0.65;
+  font-size: 0.85rem;
+}
+.dd {
+  margin: 0;
+  white-space: pre-wrap;
+}
