@@ -1,7 +1,10 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// Prisma schema — Master Budget canonical data model.
+// Translated from DATASET.md v0.1. Section refs below map each model back to DATASET.md.
+//
+// SQLite note: SQLite (via Prisma) supports neither `enum` types nor scalar list
+// fields. Every "pick from a catalog" field is therefore a String whose allowed
+// values are documented inline. This also matches ARCHITECTURE §3 (catalogs live
+// as data, not hardcoded types). Money/percent use Decimal to avoid float drift.
 
 generator client {
   provider = "prisma-client"
@@ -10,4 +13,253 @@ generator client {
 
 datasource db {
   provider = "sqlite"
+  // Connection URL is supplied by prisma.config.ts from .env (DATABASE_URL="file:./prisma/dev.db").
+}
+
+// ============================================================================
+// PLAN  — DATASET §2. The FIXED layer (= Workflow, 1:1). Identity + structure +
+// approach. Computing logic is NOT stored here (it is code/config bound to the
+// workflow); only the structural selections live as data.
+// ============================================================================
+model Plan {
+  id          String @id @default(cuid())
+  workflowRef String // e.g. "WF-001" (§2)
+
+  // Identity / hierarchy (§2): Industry -> Group -> Subgroup -> Customer
+  // (e.g. Logistics -> Warehousing -> Fulfillment Center -> SP). Stored as
+  // plain strings — this is the plan's identity, not a reference to Entity.
+  industry String
+  group    String
+  subgroup String
+  customer String
+
+  // Approach (§2): "top-down" | "bottom-up". WF-001 = top-down.
+  approach String @default("top-down")
+
+  // Structure (§2): which step-options this plan includes. Modeled as ROWS
+  // (PlanStepSelection) rather than fixed boolean columns, per the design rule
+  // "variation as rows/records, not fixed columns" and the multi-select nature.
+  stepSelections PlanStepSelection[]
+
+  versions PlanVersion[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// PLAN STRUCTURE SELECTION — DATASET §2 (structure/steps/flows).
+// One row per selected option. step: "Warehouse Operations" | "Delivery Options".
+// option (Warehouse Operations): "Asset-Based" | "Brokerage".
+// option (Delivery Options): "Client Pickup" | "B2B/Trucking" | "B2C/Courier".
+model PlanStepSelection {
+  id     String @id @default(cuid())
+  plan   Plan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+  planId String
+
+  step   String
+  option String
+
+  @@unique([planId, step, option])
+  @@index([planId])
+}
+
+// ============================================================================
+// PLAN VERSION — DATASET §3. The VARIABLE layer. Inputs + meta. Immutable once
+// Published (enforced in application logic, not by the database).
+// ============================================================================
+model PlanVersion {
+  id     String @id @default(cuid())
+  plan   Plan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+  planId String
+
+  // Meta (§3.1)
+  name            String // default pattern "WF-###-yyyymmdd" is applied by the app
+  status          String    @default("Draft") // "Published" | "Draft"
+  planOfRecord    Boolean   @default(false) // one Published version per Plan; enforced in app
+  whatChangedNote String?
+  createdAt       DateTime  @default(now())
+  publishedAt     DateTime? // set when status -> Published
+
+  // Version parameters / inputs (§3.2)
+  startMonth    String // "yyyy-mm"; CY = startMonth -> December
+  horizonX      Int     @default(3) // full years after CY; range 0-10 (validated in app)
+  bucket        String  @default("monthly") // "monthly" (Ph1) | "quarterly" | "annual"
+  beginningCash Decimal @default(0)
+
+  // Target on-hand cash (§3.2): "$ or # months of costs" — captured as value + mode.
+  targetCashValue Decimal @default(0)
+  targetCashMode  String  @default("dollars") // "dollars" | "months"
+
+  // Inputs (children)
+  allocations        PlanVersionAllocation[]
+  revenueAnnual      RevenueAnnual[]
+  seasonalityWeights SeasonalityWeight[]
+  costLines          CostLine[]
+
+  // Outputs (children, §3.5)
+  outputRevenue OutputRevenueMonthly[]
+  outputCost    OutputCostMonthly[]
+
+  @@index([planId])
+}
+
+// ALLOCATION % — DATASET §3.2 / §3.3. Revenue allocation across the plan's
+// selected warehouse-op and delivery flows. Per-version input, modeled as ROWS.
+// (Only present when a step has >1 selection; top-down = allocate only.)
+model PlanVersionAllocation {
+  id            String      @id @default(cuid())
+  planVersion   PlanVersion @relation(fields: [planVersionId], references: [id], onDelete: Cascade)
+  planVersionId String
+
+  step       String // matches PlanStepSelection.step
+  flow       String // matches PlanStepSelection.option
+  percentage Decimal // revenue share for this flow
+
+  @@unique([planVersionId, step, flow])
+  @@index([planVersionId])
+}
+
+// ============================================================================
+// REVENUE — DATASET §3.3
+// ============================================================================
+
+// ANNUAL REVENUE — keyed (PlanVersion x Client x Year). VARIABLE count = x+1
+// (never fixed year columns). CY value = start-month -> December total.
+model RevenueAnnual {
+  id            String      @id @default(cuid())
+  planVersion   PlanVersion @relation(fields: [planVersionId], references: [id], onDelete: Cascade)
+  planVersionId String
+
+  client   Entity @relation(fields: [clientId], references: [id]) // Type = client
+  clientId String
+
+  year   Int // calendar year (CY .. CY+x)
+  amount Decimal
+
+  @@unique([planVersionId, clientId, year])
+  @@index([planVersionId])
+  @@index([clientId])
+}
+
+// SEASONALITY — DATASET §3.3. 12 weights per Client per PlanVersion (sum 100%),
+// one curve reused across all that client's years. Modeled as 12 ROWS (month
+// 1-12) rather than 12 columns, per the design rule.
+model SeasonalityWeight {
+  id            String      @id @default(cuid())
+  planVersion   PlanVersion @relation(fields: [planVersionId], references: [id], onDelete: Cascade)
+  planVersionId String
+
+  client   Entity @relation(fields: [clientId], references: [id]) // Type = client
+  clientId String
+
+  month  Int // 1..12
+  weight Decimal // percent weight for the month
+
+  @@unique([planVersionId, clientId, month])
+  @@index([planVersionId])
+  @@index([clientId])
+}
+
+// ============================================================================
+// COST LINE — DATASET §3.4. One record per line, RULE-STORED (never pre-expanded
+// into months; the engine expands at compute time).
+// ============================================================================
+model CostLine {
+  id            String      @id @default(cuid())
+  planVersion   PlanVersion @relation(fields: [planVersionId], references: [id], onDelete: Cascade)
+  planVersionId String
+
+  description     String
+  category        String // "COGS" | "OPEX" | "CAPEX" | "Tax"
+  type            String? // per catalog, e.g. "Amortization" | "Depreciation" (CAPEX)
+  operationalStep String // "Asset-Based" | "Brokerage" | "Delivery" | "Office Expenses" | "Overhead" | "Commission" | "Others"
+
+  vendor   Entity? @relation(fields: [vendorId], references: [id]) // Type = vendor; optional
+  vendorId String?
+
+  timingType String // "one-time" | "annual" | "quarterly" | "monthly"
+
+  // Date / range (§3.4): single anchor for one-time/annual/quarterly (startMonth);
+  // monthly uses startMonth -> endMonth. Values are "yyyy-mm".
+  startMonth String? // anchor, or range start (monthly)
+  endMonth   String? // range end (monthly only)
+
+  uom   String // "DOLLAR" ($) | "GP_PCT" (GP%)
+  value Decimal // interpreted per uom: $ amount, or percent for GP%
+
+  // Output (§3.5): per-cost-line monthly expansion, stored at compute.
+  outputCost OutputCostMonthly[]
+
+  @@index([planVersionId])
+  @@index([vendorId])
+}
+
+// ============================================================================
+// ENTITY — DATASET §4. Master data, shared across plans and REFERENCED (not
+// owned) by them. Clients and vendors are both Entities.
+// ============================================================================
+model Entity {
+  id   String @id @default(cuid()) // autogenerated (§4)
+  name String // manual, changeable, duplicate-checked in app (not a DB unique constraint)
+
+  type        String // * "client" | "vendor" | "government" | "employee" | "contractor" | "others"
+  paymentFlow String // * "AR" | "AP" | "Passthrough"
+
+  // Payment Term (§4): anchor + # days. Default: Statement + 30.
+  // anchor: "Sales Order" | "Statement" | "Net" | "Arrival" | "Departure".
+  paymentTermAnchor String @default("Statement")
+  paymentTermDays   Int    @default(30)
+
+  mappedID    String? // placeholder (future)
+  currency    String  @default("USD") // * Ph1: USD only; future: selectable
+  entityInfo  String? // placeholder (future)
+  tags        String? // manual; comma-separated (SQLite has no scalar list type)
+  internalPOC String? // placeholder (future)
+  comments    String?
+
+  // Back-references (Entity is referenced, never owns these):
+  revenueRecords     RevenueAnnual[]
+  seasonalityWeights SeasonalityWeight[]
+  costLines          CostLine[]
+  outputRevenue      OutputRevenueMonthly[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================================================
+// OUTPUTS — DATASET §3.5. Stored ONLY at finest-grain monthly line-level detail,
+// frozen at compute. Rolled-up EBITDA/cashflow are DERIVED on read (not stored).
+// ============================================================================
+
+// Per-client monthly revenue: one row per (PlanVersion x Client x Month).
+model OutputRevenueMonthly {
+  id            String      @id @default(cuid())
+  planVersion   PlanVersion @relation(fields: [planVersionId], references: [id], onDelete: Cascade)
+  planVersionId String
+
+  client   Entity @relation(fields: [clientId], references: [id])
+  clientId String
+
+  month  String // "yyyy-mm"
+  amount Decimal
+
+  @@unique([planVersionId, clientId, month])
+  @@index([planVersionId])
+}
+
+// Per-cost-line monthly expansion: one row per (CostLine x Month).
+model OutputCostMonthly {
+  id            String      @id @default(cuid())
+  planVersion   PlanVersion @relation(fields: [planVersionId], references: [id], onDelete: Cascade)
+  planVersionId String
+  costLine      CostLine    @relation(fields: [costLineId], references: [id], onDelete: Cascade)
+  costLineId    String
+
+  month  String // "yyyy-mm"
+  amount Decimal
+
+  @@unique([costLineId, month])
+  @@index([planVersionId])
+  @@index([costLineId])
 }
