@@ -1,4 +1,4 @@
-v0.3 | 2026-07-12
+v0.4 | 2026-07-12
 
 # WORKFLOW.md — WF-001 (MVP Phase 1)
 
@@ -38,7 +38,7 @@ For both Create New and Copy Existing:
 - **Copy Existing** → summary page → edit → **NEXT** confirms.
 
 WF-001 parameters:
-1. **[enter]** Planning horizon — # of years, default 3 (CY+3).
+1. **[enter]** Planning horizon — number of **full** years (x) after CY; default 3, range 0–10. Year columns = CY + x (i.e. x + 1 total). CY = start month → December (partial if start ≠ Jan). **Validation:** if start month ≠ Jan **and** x = 0 → error ("you don't have a full year").
 2. **[multi-select]** Warehouse Operations: (1) Asset-based, (2) Brokerage. `[explain shown to user]`
 3. **[multi-select]** Delivery Options: (1) Client Pickup, (2) B2B/Trucking, (3) B2C/Courier. `[explain shown to user]`
 4. **[enter]** Beginning Cash $.
@@ -58,8 +58,8 @@ How it works: the user builds annual revenue per client per year, plus a per-cli
 User inputs:
 1. **Client** (select from Entity).
 2. **CY … CY+x annual revenue.** `CY* = enter revenue for the start month → December only; do not include past months' forecast.`
-3. **Revenue seasonality** — 12 monthly % (sum 100%). `Seasonality** = existing clients' CY+1 revenue-weighted seasonality is the default for a new client (can be manually overwritten).`
-- **Total row** = sum of clients (revenue); weighted-average of clients (seasonality).
+3. **Revenue seasonality** — 12 monthly % (sum 100%). `Seasonality** = the default for a new client is the revenue-weighted average of existing clients' curves, weighted by each client's 1st-full-year revenue (CY if Jan-start, else CY+1); can be manually overwritten.`
+- **Total row** (derived, not stored) = sum of clients (revenue); revenue-weighted average of clients' curves, weighted by each client's 1st-full-year revenue (seasonality).
 
 **CY partial-year mechanism (worked example, Start 2026-03):**
 - Entered CY* is the actual Mar–Dec total. Full-year (CY+1…) entries are Jan–Dec totals.
@@ -145,7 +145,7 @@ The user adds/edits/deletes entity information. The Entity table serves both pla
 Behaviors:
 - View entity card; view entity list (table); download file; download template and upload via template.
 - The user can **add an entity from the assumption page** — it autogenerates an Entity record with critical fields to complete.
-- A plan **cannot be Published until all mandatory Master Data fields are entered.**
+- **Compute gate:** an incomplete Entity (any mandatory/asterisked field missing — name, Type, Payment Flow, Payment Term, Currency) **blocks compute entirely** — the plan produces no output until all referenced Entities are complete. In editing mode, recompute surfaces a "complete these entities first" state instead of results. (Currency is mandatory but auto-satisfied by the USD default in Ph1, so it never blocks now.) This is stronger than a Publish-only gate.
 - Entity master-data changes impact **Draft and future plans, not Published plans.**
 
 ## 7 — Account (global settings)
@@ -159,5 +159,6 @@ Behaviors:
 - `[TBD]` Revenue/Cost assumption page `[explain how it works]` user-facing copy.
 
 ## 9 — Changelog
+- **v0.4 (2026-07-12):** Consistency update with DATASET.md v0.1. Horizon rule corrected to CY+x full years (default 3, range 0–10) with the x=0/non-Jan validation error. Seasonality default and Total-row weighting made explicit (revenue-weighted by each client's 1st-full-year revenue). Entity gate changed from Publish-gate to **compute-gate** (incomplete Entity blocks compute entirely).
 - **v0.3 (2026-07-12):** Tax moved to its own category (out of OPEX); category set now COGS / OPEX / CAPEX / Tax. OPEX subtotal clean. Dropped hh:mm from version line.
 - **v0.2 (2026-07-10):** Formalized from the WF-001 BRD. Filled logic gaps; made category/type catalog explicit; stated CY partial-year mechanism with worked example; stated EBITDA vs cashflow membership (CAPEX/Tax cashflow-only); recorded top-down single-anchor simplification and GP% cost mechanic; captured Entity master-data rules.
