@@ -1,0 +1,24 @@
+# OS
+.DS_Store
+
+# Client financial data — real numbers stay OUT of git.
+# Convention (adjust once folder structure is settled):
+client-*/private/
+*.actuals.*
+*.local.*
+
+# Dependencies
+node_modules/
+
+# Environment variables / secrets
+.env
+.env.*
+!.env.example
+
+# SQLite database files
+*.db
+*.db-journal
+prisma/dev.db
+
+# Next.js build output
+.next/
