@@ -1,4 +1,4 @@
-v0.7 | 2026-07-12
+v0.8 | 2026-07-12
 
 # Master Budget — SCOPE
 
@@ -7,13 +7,22 @@ Status: working draft. Items marked `[TBD]` / `[PENDING]`. Revised continuously;
 ## 0 — Project declaration
 Read this first (per CLAUDE.md Part A — it tells you where this project sits).
 - **Type:** coding project → **CLAUDE.md Part B applies.**
-- **Required governance docs:** SCOPE.md, WORKFLOW.md, ARCHITECTURE.md, DATASET.md.
+- **Required governance docs:** SCOPE.md, WORKFLOW.md, ARCHITECTURE.md, DATASET.md, BACKLOG.md.
   - STYLE.md — created when a project-wide UI/UX decision is finalized (deferred).
-  - BACKLOG.md — created at first flush (deferred).
   - process.md — none yet; add if project-specific processes emerge.
 - **Branch/PR discipline:** **feature-branch + PR. No direct commits to main.** One feature branch per task, named `type/short-description` (type ∈ feat, fix, docs, refactor, chore, style, test, perf, build, ci, uat), branched from up-to-date main → commit → push → PR when asked → merge → post-merge cleanup (per CLAUDE.md Part A/B). The project is treated as deploy-bearing.
 - **Deploy status:** not yet hosted; branch discipline is adopted now regardless, ahead of hosting.
-- **Transition note:** the commit that introduces this declaration (SCOPE v0.7 + the synced CLAUDE.md copy) is the **last direct-to-main commit.** All work after it uses feature branches + PRs.
+
+## 0a — Repository structure (placement principle)
+Where things live in the repo. This is a **placement principle**, not a fixed folder map — so new WFs/clients slot in without reorganizing existing files.
+
+- **Code is always at root (trunk).** The engine, the app, the generic logic — all universal, all root. There is **no per-subgroup or per-customer code** (that would be the `if customer == SP` forking §13 forbids). Customization is expressed as data/config, never as branched code.
+- **Data/config is placed by ownership level:**
+  - **Master-level** (standard, reusable) → **root** (standard WF templates, default catalogs, config-as-data defaults).
+  - **Subgroup-level** → that subgroup's folder (subgroup-specific templates/settings, *if/when* they diverge from master).
+  - **Customer-level** → that customer's folder (e.g. `client-sp/`): the customer's own unique content only — its actual input data, logo, a customized WF derived from a template, customer-specific overrides. **No code.**
+- **Folders hold content, never logic.** A function always goes to root; only *data* has a folder question, answered by "whose data is it?"
+- **Current MVP instance:** root = trunk app + all standard content; `client-sp/` = SP's minimal unique data (e.g. its DESIGN.md); a subgroup folder is deferred until subgroup-specific content exists. Reorganizable under this principle as new WFs/clients arrive.
 
 ## 1 — Purpose
 A business budgeting tool: planning (P&L + cashflow projection) and execution (actual AR/AP reconciled against an approved plan). One generic engine, applied across industries and customers via a layered customization model — general logic is global; specifics cascade down.
@@ -152,9 +161,10 @@ Everything customizable — settings, mappings, assumptions, input schema, workf
 - `[TBD]` Bottom-up demand: unit(s), entry point, demand→driver mapping (Phase 2).
 - `[TBD]` Cost-behavior detail (fixed / semi-fixed / variable + drivers); "Office Variable" driver.
 - `[TBD]` Supply-driven / constrained-window mechanics.
-- `[TBD]` Governance files not yet created: STYLE.md, BACKLOG.md (deferred until concrete).
+- `[TBD]` Governance files not yet created: STYLE.md (deferred until concrete).
 
 ## 16 — Changelog
+- **v0.8 (2026-07-12):** Added §0a Repository structure (placement principle: code always root; data/config placed by ownership level; folders hold content not logic; client-sp = SP's unique data only). Moved BACKLOG.md to the required-docs list (now created). Removed the v0.7 transition note (that transition is complete).
 - **v0.7 (2026-07-12):** Added §0 Project declaration (type = coding → Part B applies; required governance docs; branch/PR discipline = feature-branch + PR, no direct-to-main; deploy status). This is the last direct-to-main commit; work after it uses feature branches + PRs. Synced universal CLAUDE.md copy committed to the repo in the same commit.
 - **v0.6 (2026-07-12):** Folded in WF-001 BRD decisions. Added §2a EBITDA-vs-cashflow membership principle. Cost categories COGS/OPEX/CAPEX (A&D = CAPEX types). P&L bottom line = EBITDA. Tax excluded from EBITDA, in cashflow. §10: CY naming (replaces YR0), CY = partial current year. §11: Account-level currency/lang/tz, default USD. Top-down anchor simplification and GP% cost mechanic recorded (detail in WF-001).
 - **v0.5 (2026-07-10):** Rebuilt from v0.45 base — fork = allocate|prioritize (no "sum"); no per-step P&L; demand-dependency ⟂ cost behavior; hierarchy weighting; master data Global/ISO→Customer; Published/Draft + plan-of-record; recon against top-down or bottom-up.
