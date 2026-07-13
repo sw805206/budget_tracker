@@ -23,4 +23,7 @@ prisma/dev.db
 # Next.js build output
 .next/
 
+# TypeScript build artifacts
+*.tsbuildinfo
+
 /app/generated/prisma
