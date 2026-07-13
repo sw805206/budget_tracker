@@ -22,3 +22,5 @@ prisma/dev.db
 
 # Next.js build output
 .next/
+
+/app/generated/prisma
