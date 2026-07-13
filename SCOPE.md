@@ -1,4 +1,4 @@
-v0.8 | 2026-07-12
+v0.9 | 2026-07-12
 
 # Master Budget — SCOPE
 
@@ -12,6 +12,7 @@ Read this first (per CLAUDE.md Part A — it tells you where this project sits).
   - process.md — none yet; add if project-specific processes emerge.
 - **Branch/PR discipline:** **feature-branch + PR. No direct commits to main.** One feature branch per task, named `type/short-description` (type ∈ feat, fix, docs, refactor, chore, style, test, perf, build, ci, uat), branched from up-to-date main → commit → push → PR when asked → merge → post-merge cleanup (per CLAUDE.md Part A/B). The project is treated as deploy-bearing.
 - **Deploy status:** not yet hosted; branch discipline is adopted now regardless, ahead of hosting.
+- **Editing existing governance docs:** targeted edits to existing repo docs (SCOPE, WORKFLOW, ARCHITECTURE, DATASET, BACKLOG) are made by Claude Code directly in the repo, working from the current file on the branch — not regenerated from an external copy and pasted over (which risks reintroducing stale content). Discussion and exact wording are settled first; Code applies the scoped edit, shows the diff for approval, then commits. Drafting brand-new docs from scratch may still happen outside the repo, but once a doc exists, edits go through Code in-repo.
 
 ## 0a — Repository structure (placement principle)
 Where things live in the repo. This is a **placement principle**, not a fixed folder map — so new WFs/clients slot in without reorganizing existing files.
@@ -164,6 +165,7 @@ Everything customizable — settings, mappings, assumptions, input schema, workf
 - `[TBD]` Governance files not yet created: STYLE.md (deferred until concrete).
 
 ## 16 — Changelog
+- **v0.9 (2026-07-12):** Added §0 rule that edits to existing governance docs are made by Code in-repo (prevents stale-copy drift).
 - **v0.8 (2026-07-12):** Added §0a Repository structure (placement principle: code always root; data/config placed by ownership level; folders hold content not logic; client-sp = SP's unique data only). Moved BACKLOG.md to the required-docs list (now created). Removed the v0.7 transition note (that transition is complete).
 - **v0.7 (2026-07-12):** Added §0 Project declaration (type = coding → Part B applies; required governance docs; branch/PR discipline = feature-branch + PR, no direct-to-main; deploy status). This is the last direct-to-main commit; work after it uses feature branches + PRs. Synced universal CLAUDE.md copy committed to the repo in the same commit.
 - **v0.6 (2026-07-12):** Folded in WF-001 BRD decisions. Added §2a EBITDA-vs-cashflow membership principle. Cost categories COGS/OPEX/CAPEX (A&D = CAPEX types). P&L bottom line = EBITDA. Tax excluded from EBITDA, in cashflow. §10: CY naming (replaces YR0), CY = partial current year. §11: Account-level currency/lang/tz, default USD. Top-down anchor simplification and GP% cost mechanic recorded (detail in WF-001).
