@@ -221,6 +221,11 @@ model Entity {
   internalPOC String? // placeholder (future)
   comments    String?
 
+  // Archive (BL-011): null = active; non-null = archived at this timestamp.
+  // Visibility-only — archiving never alters referencing plan data (Published
+  // immutability preserved; no cascade).
+  archivedAt DateTime?
+
   // Back-references (Entity is referenced, never owns these):
   revenueRecords     RevenueAnnual[]
   seasonalityWeights SeasonalityWeight[]
