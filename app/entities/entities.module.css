@@ -239,3 +239,91 @@
   margin: 0;
   white-space: pre-wrap;
 }
+
+/* ── Tabs (Active / Archived) ──────────────────────────────────────────── */
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+  margin-bottom: 1.25rem;
+}
+.tab,
+.tabActive {
+  padding: 0.45rem 0.9rem;
+  font-size: 0.9rem;
+  text-decoration: none;
+  color: inherit;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.tab {
+  opacity: 0.6;
+}
+.tab:hover {
+  opacity: 1;
+}
+.tabActive {
+  font-weight: 600;
+  border-bottom-color: #2563eb;
+}
+
+/* ── Row action buttons (Archive / Unarchive / Delete) ─────────────────── */
+.actionGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.btnWrap {
+  display: inline-flex; /* carries the title tooltip even when the button is disabled */
+}
+.actionBtn,
+.dangerBtn {
+  padding: 0.28rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+  color: inherit;
+}
+.actionBtn:hover:not(:disabled) {
+  background: rgba(128, 128, 128, 0.12);
+}
+.dangerBtn {
+  color: #dc2626;
+  border-color: rgba(220, 38, 38, 0.5);
+}
+.dangerBtn:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.1);
+}
+/* Greyed = visibly present but disabled. pointer-events:none lets the wrapping
+   span show its title tooltip explaining why. */
+.actionBtn:disabled,
+.dangerBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ── Usage breakdown (detail card) ─────────────────────────────────────── */
+.usage {
+  font-size: 0.9rem;
+  opacity: 0.85;
+  margin: 0 0 1.25rem;
+}
+
+/* ── Archived tag ──────────────────────────────────────────────────────── */
+.archivedTag {
+  display: inline-block;
+  margin-left: 0.6rem;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 999px;
+  vertical-align: middle;
+  background: rgba(128, 128, 128, 0.18);
+  opacity: 0.8;
+}
