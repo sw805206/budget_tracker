@@ -253,6 +253,49 @@
   cursor: not-allowed;
 }
 
+/* Editable allocation entry: integer text + % affordance, no spinners. */
+.allocField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.pctField {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+  border-radius: 8px;
+  background: rgba(128, 128, 128, 0.06);
+  overflow: hidden;
+}
+.pctField:focus-within {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+.pctInput {
+  width: 56px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 0.92rem;
+  font-family: inherit;
+  padding: 0.5rem 0.35rem 0.5rem 0.7rem;
+  text-align: right;
+}
+.pctInput:focus {
+  outline: none;
+}
+.pctSuffix {
+  padding: 0 0.6rem 0 0.15rem;
+  opacity: 0.55;
+  font-size: 0.9rem;
+}
+/* SOFT advisory (does not block Save) — muted, distinct from the amber HARD warn. */
+.warnSoft {
+  font-size: 0.78rem;
+  font-style: italic;
+  opacity: 0.6;
+}
+
 .actions {
   display: flex;
   align-items: center;

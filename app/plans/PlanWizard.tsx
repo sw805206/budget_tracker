@@ -175,19 +175,39 @@ export default function PlanWizard({
             <span className={styles.sumOk}>(auto-balances to 100%)</span>
           )}
         </div>
-        {editable.map((f) => (
-          <label key={f} className={styles.allocRow}>
-            <span>{f}</span>
-            <input
-              className={styles.smallInput}
-              type="number"
-              min={0}
-              max={100}
-              value={alloc[f] ?? ""}
-              onChange={(e) => setAlloc((a) => ({ ...a, [f]: e.target.value }))}
-            />
-          </label>
-        ))}
+        {editable.map((f) => {
+          const raw = alloc[f] ?? "";
+          const isZero = raw !== "" && Number(raw) === 0; // SOFT: explicit 0
+          return (
+            <div key={f} className={styles.allocField}>
+              <label className={styles.allocRow}>
+                <span>{f}</span>
+                {/* Plain integer entry (no spinners) with a % affordance. */}
+                <span className={styles.pctField}>
+                  <input
+                    className={styles.pctInput}
+                    type="text"
+                    inputMode="numeric"
+                    value={raw}
+                    onChange={(e) =>
+                      setAlloc((a) => ({
+                        ...a,
+                        [f]: e.target.value.replace(/\D/g, "").slice(0, 3),
+                      }))
+                    }
+                    aria-label={`${f} allocation percent`}
+                  />
+                  <span className={styles.pctSuffix}>%</span>
+                </span>
+              </label>
+              {isZero && (
+                <span className={styles.warnSoft}>
+                  0% — deselect this option instead?
+                </span>
+              )}
+            </div>
+          );
+        })}
         {/* Last selected flow (canonical order) — read-only derived remainder. */}
         <label className={styles.allocRow}>
           <span>
@@ -203,7 +223,7 @@ export default function PlanWizard({
         </label>
         {over && (
           <span className={styles.warn}>
-            Allocation exceeds 100% — reduce the other fields.
+            Total exceeds 100% — reduce the other fields to free up the remainder.
           </span>
         )}
       </div>
