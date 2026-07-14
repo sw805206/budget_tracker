@@ -29,6 +29,11 @@ const STEP_LABELS = [
 const WAREHOUSE = PLAN_FORKS[0].options;
 const DELIVERY = PLAN_FORKS[1].options;
 
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
 export default function PlanWizard({
   defaultName,
   defaultStartMonth,
@@ -59,8 +64,14 @@ export default function PlanWizard({
   const toggle = (list: string[], set: (v: string[]) => void, opt: string) =>
     set(list.includes(opt) ? list.filter((o) => o !== opt) : [...list, opt]);
 
+  // Start month is stored as "YYYY-MM"; split for the Month + Year controls. Month
+  // is always 2 digits (from the select), so this stays robust while the year is typed.
+  const [startYear, startMon] = startMonth.split("-");
+  const setStartMon = (m: string) => setStartMonth(`${startYear}-${m}`);
+  const setStartYear = (y: string) => setStartMonth(`${y}-${startMon}`);
+
   // ── Step 2 client validation (mirrors the server gate) ──────────────────────
-  const startIsJan = startMonth.slice(5, 7) === "01";
+  const startIsJan = startMon === "01";
   const x = Number(horizonX);
   const horizonValid =
     Number.isInteger(x) && x >= HORIZON_MIN && x <= HORIZON_MAX;
@@ -233,15 +244,37 @@ export default function PlanWizard({
               onChange={(e) => setName(e.target.value)}
             />
           </label>
-          <label className={styles.field}>
+          <div className={styles.field}>
             <span className={styles.label}>Start month</span>
-            <input
-              className={styles.input}
-              type="month"
-              value={startMonth}
-              onChange={(e) => setStartMonth(e.target.value)}
-            />
-          </label>
+            <div className={styles.row}>
+              <select
+                className={styles.input}
+                value={startMon}
+                onChange={(e) => setStartMon(e.target.value)}
+                aria-label="Start month"
+              >
+                {MONTHS.map((label, i) => {
+                  const v = String(i + 1).padStart(2, "0");
+                  return (
+                    <option key={v} value={v}>
+                      {label}
+                    </option>
+                  );
+                })}
+              </select>
+              <input
+                className={`${styles.input} ${styles.smallInput}`}
+                type="text"
+                inputMode="numeric"
+                value={startYear}
+                onChange={(e) =>
+                  setStartYear(e.target.value.replace(/\D/g, "").slice(0, 4))
+                }
+                aria-label="Start year"
+                placeholder="YYYY"
+              />
+            </div>
+          </div>
           <div className={styles.actions}>
             <button className={styles.primary} onClick={submitStep1} disabled={pending}>
               {pending ? "Saving…" : planVersionId ? "Save & Next" : "Create & Next"}
