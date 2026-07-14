@@ -240,6 +240,18 @@
 .sumBad {
   color: #dc2626;
 }
+.derivedTag {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  opacity: 0.55;
+}
+.derivedInput {
+  background: rgba(128, 128, 128, 0.14);
+  opacity: 0.85;
+  cursor: not-allowed;
+}
 
 .actions {
   display: flex;

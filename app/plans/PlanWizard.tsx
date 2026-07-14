@@ -66,12 +66,22 @@ export default function PlanWizard({
     Number.isInteger(x) && x >= HORIZON_MIN && x <= HORIZON_MAX;
   const horizonFullYearErr = !startIsJan && x === 0;
 
-  const forkSum = (flows: string[]) =>
+  // Per-fork allocation (rule A): canonical option order; first N−1 fields editable,
+  // the LAST is a read-only derived remainder = 100 − sum(others). A fork is valid
+  // unless that remainder goes negative (others already exceed 100).
+  const sumOf = (flows: string[]) =>
     flows.reduce((n, f) => n + (Number(alloc[f]) || 0), 0);
+  const forkParts = (options: readonly string[], selected: string[]) => {
+    const ordered = options.filter((o) => selected.includes(o)); // canonical order
+    const editable = ordered.slice(0, -1);
+    const last = ordered[ordered.length - 1];
+    const derived = 100 - sumOf(editable);
+    return { ordered, editable, last, derived };
+  };
   const whNeedsAlloc = warehouse.length > 1;
   const dlNeedsAlloc = delivery.length > 1;
-  const whAllocOk = !whNeedsAlloc || Math.round(forkSum(warehouse)) === 100;
-  const dlAllocOk = !dlNeedsAlloc || Math.round(forkSum(delivery)) === 100;
+  const whAllocOk = !whNeedsAlloc || forkParts(WAREHOUSE, warehouse).derived >= 0;
+  const dlAllocOk = !dlNeedsAlloc || forkParts(DELIVERY, delivery).derived >= 0;
 
   const step2Ok =
     horizonValid &&
@@ -108,8 +118,14 @@ export default function PlanWizard({
     setError(null);
     if (!planVersionId) return setError("Create the plan in Step 1 first.");
     if (!step2Ok) return setError("Fix the highlighted fields before continuing.");
-    const allocFor = (flows: string[]) =>
-      flows.map((f) => ({ flow: f, percentage: Number(alloc[f]) || 0 }));
+    // Canonical-ordered rows; the derived last value is written like any other row.
+    const allocRows = (options: readonly string[], selected: string[]) => {
+      const { editable, last, derived } = forkParts(options, selected);
+      return [
+        ...editable.map((f) => ({ flow: f, percentage: Number(alloc[f]) || 0 })),
+        { flow: last, percentage: derived },
+      ];
+    };
     startTransition(async () => {
       const res = await savePlanParameters(planVersionId, {
         horizonX: x,
@@ -118,8 +134,8 @@ export default function PlanWizard({
         beginningCash: Number(beginningCash) || 0,
         targetCashValue: Number(targetCashValue) || 0,
         targetCashMode,
-        warehouseAllocations: whNeedsAlloc ? allocFor(warehouse) : [],
-        deliveryAllocations: dlNeedsAlloc ? allocFor(delivery) : [],
+        warehouseAllocations: whNeedsAlloc ? allocRows(WAREHOUSE, warehouse) : [],
+        deliveryAllocations: dlNeedsAlloc ? allocRows(DELIVERY, delivery) : [],
       });
       if (!res.ok) return setError(res.error);
       setStep(3);
@@ -127,16 +143,28 @@ export default function PlanWizard({
   }
 
   // ── Allocation sub-UI for a fork (shown only when >1 selected) ───────────────
-  const AllocBlock = ({ label, flows }: { label: string; flows: string[] }) => {
-    const sum = forkSum(flows);
-    const ok = Math.round(sum) === 100;
+  const AllocBlock = ({
+    label,
+    options,
+    selected,
+  }: {
+    label: string;
+    options: readonly string[];
+    selected: string[];
+  }) => {
+    const { editable, last, derived } = forkParts(options, selected);
+    const over = derived < 0;
     return (
       <div className={styles.allocBlock}>
         <div className={styles.allocHead}>
           {label} allocation %{" "}
-          <span className={ok ? styles.sumOk : styles.sumBad}>({sum}% / 100%)</span>
+          {over ? (
+            <span className={styles.sumBad}>(over 100% by {Math.abs(derived)}%)</span>
+          ) : (
+            <span className={styles.sumOk}>(auto-balances to 100%)</span>
+          )}
         </div>
-        {flows.map((f) => (
+        {editable.map((f) => (
           <label key={f} className={styles.allocRow}>
             <span>{f}</span>
             <input
@@ -149,6 +177,24 @@ export default function PlanWizard({
             />
           </label>
         ))}
+        {/* Last selected flow (canonical order) — read-only derived remainder. */}
+        <label className={styles.allocRow}>
+          <span>
+            {last} <span className={styles.derivedTag}>auto</span>
+          </span>
+          <input
+            className={`${styles.smallInput} ${styles.derivedInput} ${over ? styles.fieldError : ""}`}
+            type="number"
+            value={derived}
+            readOnly
+            aria-label={`${last} — auto-calculated remainder`}
+          />
+        </label>
+        {over && (
+          <span className={styles.warn}>
+            Allocation exceeds 100% — reduce the other fields.
+          </span>
+        )}
       </div>
     );
   };
@@ -243,7 +289,7 @@ export default function PlanWizard({
                 </label>
               ))}
             </div>
-            {whNeedsAlloc && <AllocBlock label="Warehouse Operations" flows={warehouse} />}
+            {whNeedsAlloc && <AllocBlock label="Warehouse Operations" options={WAREHOUSE} selected={warehouse} />}
           </div>
 
           <div className={styles.field}>
@@ -260,7 +306,7 @@ export default function PlanWizard({
                 </label>
               ))}
             </div>
-            {dlNeedsAlloc && <AllocBlock label="Delivery Options" flows={delivery} />}
+            {dlNeedsAlloc && <AllocBlock label="Delivery Options" options={DELIVERY} selected={delivery} />}
           </div>
 
           <label className={styles.field}>
