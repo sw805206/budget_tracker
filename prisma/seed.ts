@@ -77,36 +77,40 @@ async function seed() {
 
   // Minimal-but-valid plans. Plan has no name column, so the "SEED-" marker lives
   // on the PlanVersion name; customer also carries "SEED " for visibility.
-  const plan = (customer: string) =>
-    prisma.plan.create({
+  // Plan + its PlanVersion are created ATOMICALLY (one nested create) — there is no
+  // window where a Plan could exist without its SEED- version, which teardown keys
+  // off; so a crash can't orphan a Plan beyond the reach of the next reseed's wipe.
+  const planWithVersion = async (
+    customer: string,
+    versionName: string,
+    status: string,
+  ) => {
+    const p = await prisma.plan.create({
       data: {
         workflowRef: "WF-001",
         industry: "Logistics",
         group: "Warehousing",
         subgroup: "Fulfillment Center",
         customer,
+        versions: {
+          create: { name: versionName, startMonth: "2026-01", status },
+        },
       },
+      include: { versions: true },
     });
+    return p.versions[0];
+  };
 
-  const pubPlan = await plan("SEED Freight Co (Published)");
-  const pubVersion = await prisma.planVersion.create({
-    data: {
-      planId: pubPlan.id,
-      name: "SEED-PUB-2026",
-      startMonth: "2026-01",
-      status: "Published",
-    },
-  });
-
-  const draftPlan = await plan("SEED Freight Co (Draft)");
-  const draftVersion = await prisma.planVersion.create({
-    data: {
-      planId: draftPlan.id,
-      name: "SEED-DRAFT-2026",
-      startMonth: "2026-01",
-      status: "Draft",
-    },
-  });
+  const pubVersion = await planWithVersion(
+    "SEED Freight Co (Published)",
+    "SEED-PUB-2026",
+    "Published",
+  );
+  const draftVersion = await planWithVersion(
+    "SEED Freight Co (Draft)",
+    "SEED-DRAFT-2026",
+    "Draft",
+  );
 
   // References (client → RevenueAnnual; vendor → CostLine).
   // Published: Northwind + Globex (client), Fabrikam (vendor).
