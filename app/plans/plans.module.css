@@ -1,0 +1,326 @@
+/* Design-light styling for the Plan wizard + Plans listing. Neutral colors +
+   translucent borders, matching app/entities/entities.module.css. STYLE.md deferred. */
+
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+.h1 {
+  font-size: 1.5rem;
+  font-weight: 650;
+  margin: 0;
+}
+.breadcrumb {
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+}
+.breadcrumb a {
+  color: inherit;
+  opacity: 0.7;
+  text-decoration: none;
+}
+.breadcrumb a:hover {
+  opacity: 1;
+}
+.empty {
+  opacity: 0.7;
+  padding: 2rem 0;
+}
+
+/* Buttons */
+.primary,
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 0.95rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 550;
+  cursor: pointer;
+  text-decoration: none;
+  border: 1px solid transparent;
+  font-family: inherit;
+}
+.primary {
+  background: #2563eb;
+  color: #fff;
+}
+.primary:hover {
+  background: #1d4ed8;
+}
+.primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.secondary {
+  background: transparent;
+  color: inherit;
+  border-color: rgba(128, 128, 128, 0.4);
+}
+.secondary:hover {
+  background: rgba(128, 128, 128, 0.1);
+}
+
+/* Table */
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid rgba(128, 128, 128, 0.25);
+  border-radius: 10px;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.table th,
+.table td {
+  text-align: left;
+  padding: 0.7rem 0.85rem;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.18);
+  white-space: nowrap;
+}
+.table th {
+  font-weight: 600;
+  opacity: 0.65;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+.pubTag,
+.draftTag {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.pubTag {
+  background: rgba(37, 99, 235, 0.15);
+}
+.draftTag {
+  background: rgba(128, 128, 128, 0.18);
+  opacity: 0.85;
+}
+
+/* Step indicator */
+.steps {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.1rem;
+  padding: 0;
+  margin: 0 0 1.5rem;
+  font-size: 0.85rem;
+}
+.stepCurrent,
+.stepDone,
+.stepTodo {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.stepCurrent {
+  font-weight: 650;
+}
+.stepTodo {
+  opacity: 0.5;
+}
+.stepNum {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  font-size: 0.72rem;
+  border: 1px solid rgba(128, 128, 128, 0.5);
+}
+.stepCurrent .stepNum {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+.stepDone .stepNum {
+  background: rgba(37, 99, 235, 0.2);
+}
+
+/* Form */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+  max-width: 480px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  opacity: 0.85;
+}
+.input {
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+  background: rgba(128, 128, 128, 0.06);
+  color: inherit;
+  font-size: 0.92rem;
+  font-family: inherit;
+}
+.input:focus {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+.smallInput {
+  width: 130px;
+}
+.fieldError {
+  border-color: #dc2626;
+}
+.warn {
+  color: #b45309;
+  font-size: 0.82rem;
+}
+.row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.1rem;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+}
+
+/* Allocation sub-block */
+.allocBlock {
+  margin-top: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px dashed rgba(128, 128, 128, 0.4);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.allocHead {
+  font-size: 0.82rem;
+  font-weight: 600;
+  opacity: 0.85;
+}
+.allocRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.88rem;
+}
+.sumOk {
+  color: #15803d;
+}
+.sumBad {
+  color: #dc2626;
+}
+.derivedTag {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  opacity: 0.55;
+}
+.derivedInput {
+  background: rgba(128, 128, 128, 0.14);
+  opacity: 0.85;
+  cursor: not-allowed;
+}
+
+/* Editable allocation entry: integer text + % affordance, no spinners. */
+.allocField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.pctField {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+  border-radius: 8px;
+  background: rgba(128, 128, 128, 0.06);
+  overflow: hidden;
+}
+.pctField:focus-within {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+.pctInput {
+  width: 56px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 0.92rem;
+  font-family: inherit;
+  padding: 0.5rem 0.35rem 0.5rem 0.7rem;
+  text-align: right;
+}
+.pctInput:focus {
+  outline: none;
+}
+.pctSuffix {
+  padding: 0 0.6rem 0 0.15rem;
+  opacity: 0.55;
+  font-size: 0.9rem;
+}
+/* SOFT advisory (does not block Save) — muted, distinct from the amber HARD warn. */
+.warnSoft {
+  font-size: 0.78rem;
+  font-style: italic;
+  opacity: 0.6;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+.note {
+  font-size: 0.82rem;
+  opacity: 0.65;
+  margin: 0;
+}
+.error {
+  color: #dc2626;
+  font-size: 0.88rem;
+  margin: 0 0 1rem;
+}
+
+/* Stubs (Steps 3–4) */
+.stub {
+  border: 1px dashed rgba(128, 128, 128, 0.4);
+  border-radius: 10px;
+  padding: 1.5rem;
+  opacity: 0.9;
+}
+.stubTitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.15rem;
+}
