@@ -8,6 +8,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/app/lib/prisma";
 import { CURRENCY_DEFAULT } from "./constants";
+import { getEntityReferences, isReferenced } from "./references";
 
 export type EntityInput = {
   name: string;
@@ -70,6 +71,52 @@ export async function updateEntity(
   return { ok: true, id };
 }
 
-// NOTE: entity deletion is intentionally NOT implemented here. Safe removal
-// (archive / delete-with-usage-check against referencing plan data) is its own
-// upcoming branch. This screen ships view / create / edit only — no hard delete.
+// ── Archive / Unarchive (BL-011) ─────────────────────────────────────────────
+// Visibility-only. Archiving sets archivedAt = now; it does NOT alter any
+// referencing plan's data (Published immutability preserved; no cascade).
+
+export async function archiveEntity(id: string): Promise<ActionResult> {
+  await prisma.entity.update({ where: { id }, data: { archivedAt: new Date() } });
+  revalidatePath("/entities");
+  revalidatePath(`/entities/${id}`);
+  return { ok: true, id };
+}
+
+export async function unarchiveEntity(id: string): Promise<ActionResult> {
+  await prisma.entity.update({ where: { id }, data: { archivedAt: null } });
+  revalidatePath("/entities");
+  revalidatePath(`/entities/${id}`);
+  return { ok: true, id };
+}
+
+// ── Delete (BL-011) — gated hard delete ──────────────────────────────────────
+// DELETE-SAFETY ASYMMETRY (see app/entities/references.ts): the three CLIENT
+// tables (RevenueAnnual, SeasonalityWeight, OutputRevenueMonthly) are ON DELETE
+// RESTRICT — the DB physically blocks a referenced delete. But CostLine (VENDOR)
+// is ON DELETE SET NULL — the DB does NOT block it; it would silently null
+// vendorId on those cost lines. So this server-side isReferenced re-check is the
+// ONLY guard for vendor references. Re-check at action time — never trust the
+// client's (possibly stale) button state.
+export async function deleteEntity(id: string): Promise<ActionResult> {
+  const refs = await getEntityReferences(id);
+  if (isReferenced(refs)) {
+    return {
+      ok: false,
+      error:
+        "Cannot delete: this entity is referenced by plan data. Archive it instead.",
+    };
+  }
+  try {
+    await prisma.entity.delete({ where: { id } });
+  } catch {
+    // Backstop: a reference could appear between the check and the delete, or a
+    // RESTRICT client FK could still block. Refuse rather than surface a 500.
+    return {
+      ok: false,
+      error:
+        "Cannot delete: this entity is referenced by plan data. Archive it instead.",
+    };
+  }
+  revalidatePath("/entities");
+  return { ok: true, id };
+}
