@@ -324,3 +324,133 @@
   margin: 0 0 0.5rem;
   font-size: 1.15rem;
 }
+
+/* ── Revenue assumption table ──────────────────────────────────────────── */
+.revToolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.25rem 0 0.9rem;
+}
+.revToolbarNote {
+  font-size: 0.78rem;
+  opacity: 0.55;
+}
+.revToolbarRight {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.savedTag {
+  color: #15803d;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.revTableWrap {
+  overflow-x: auto;
+  border: 1px solid rgba(128, 128, 128, 0.25);
+  border-radius: 10px;
+}
+.revTable {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.revTable th,
+.revTable td {
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+  text-align: right;
+}
+/* Frozen Client column (sticky-left); its own background covers scrolled cells. */
+.stickyCol {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  text-align: left;
+  background: var(--background, #fff);
+  border-right: 1px solid rgba(128, 128, 128, 0.25);
+  min-width: 150px;
+}
+.stickyHead {
+  z-index: 2;
+}
+.revTable thead th {
+  font-weight: 600;
+  font-size: 0.74rem;
+  opacity: 0.75;
+  vertical-align: bottom;
+}
+.yearHead {
+  min-width: 84px;
+}
+.yearTag {
+  font-size: 0.64rem;
+  opacity: 0.55;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.asterisk {
+  color: #b45309;
+}
+.monthHead {
+  min-width: 44px;
+  opacity: 0.6;
+}
+.gapCol {
+  min-width: 16px;
+  background: rgba(128, 128, 128, 0.05);
+  border-bottom: none;
+}
+.clientCell {
+  font-weight: 550;
+}
+.revCell {
+  padding: 0.3rem 0.4rem;
+}
+.revInput {
+  width: 72px;
+  text-align: right;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  border-radius: 6px;
+  background: rgba(128, 128, 128, 0.05);
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+.revInput:focus {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+.emptyRow {
+  text-align: center;
+  opacity: 0.6;
+  padding: 1.5rem;
+}
+/* Shaded = derived / not editable, everywhere on this screen (surface-1). */
+.seasonPlaceholder {
+  background: rgba(128, 128, 128, 0.08);
+  color: rgba(128, 128, 128, 0.7);
+  text-align: center;
+}
+.totalRow td {
+  background: rgba(128, 128, 128, 0.08);
+  border-top: 2px solid rgba(128, 128, 128, 0.4);
+  font-weight: 600;
+}
+.totalLabel {
+  background: rgba(128, 128, 128, 0.08);
+  border-top: 2px solid rgba(128, 128, 128, 0.4);
+}
+.totalCell {
+  font-variant-numeric: tabular-nums;
+}
+.footnote {
+  font-size: 0.8rem;
+  opacity: 0.75;
+  margin: 0.75rem 0 0;
+}
