@@ -544,3 +544,46 @@
   border: 1px dashed rgba(128, 128, 128, 0.35);
   border-radius: 8px;
 }
+
+/* ── Seasonality cells ─────────────────────────────────────────────────── */
+.seasonCell {
+  padding: 0.28rem 0.3rem;
+  text-align: center;
+}
+.seasonInput {
+  width: 38px;
+  text-align: center;
+  padding: 0.3rem 0.25rem;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  border-radius: 5px;
+  background: rgba(128, 128, 128, 0.05);
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.82rem;
+}
+.seasonInput:focus {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+/* Dec = derived, read-only (shaded surface-1) with an AUTO tag. */
+.derivedDec {
+  background: rgba(128, 128, 128, 0.12);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.autoTag {
+  display: block;
+  font-size: 0.58rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  opacity: 0.5;
+}
+.decError {
+  background: rgba(220, 38, 38, 0.15);
+  color: #dc2626;
+}
+.previewCell {
+  background: rgba(128, 128, 128, 0.08);
+  color: rgba(128, 128, 128, 0.75);
+}

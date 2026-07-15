@@ -10,6 +10,7 @@ export type RevenueClient = {
   entityId: string;
   name: string;
   revenueByYear: Record<number, number>; // calendar year -> amount
+  seasonalityByMonth: Record<number, number>; // month 1..12 -> weight
 };
 
 export type ClientOption = { id: string; name: string };
@@ -29,10 +30,20 @@ export async function getRevenueData(
   for (const r of rows) {
     let c = byClient.get(r.clientId);
     if (!c) {
-      c = { entityId: r.clientId, name: r.client.name ?? "(unnamed)", revenueByYear: {} };
+      c = {
+        entityId: r.clientId,
+        name: r.client.name ?? "(unnamed)",
+        revenueByYear: {},
+        seasonalityByMonth: {},
+      };
       byClient.set(r.clientId, c);
     }
     c.revenueByYear[r.year] = Number(r.amount);
+  }
+  const seasons = await prisma.seasonalityWeight.findMany({ where: { planVersionId } });
+  for (const s of seasons) {
+    const c = byClient.get(s.clientId);
+    if (c) c.seasonalityByMonth[s.month] = Number(s.weight);
   }
   const active = await prisma.entity.findMany({
     where: { archivedAt: null, type: "client" }, // BL-014: archived excluded
@@ -69,13 +80,22 @@ export async function createRevenueClient(
 
 export type SaveRevenueResult = { ok: true } | { ok: false; error: string };
 
-// Idempotent rewrite of this version's RevenueAnnual from the table state
-// (rule-E style: delete + recreate in one transaction).
+const JAN_NOV = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+
+// Idempotent rewrite of this version's RevenueAnnual + SeasonalityWeight from the
+// table state (rule-E style: delete + recreate in one transaction). Seasonality is
+// passed as Jan–Nov weights; Dec is derived here = 100 − sum(Jan:Nov). A curve whose
+// Jan–Nov exceeds 100 (Dec would be negative) is rejected — the server backstop for
+// the client-side negative-remainder block.
 export async function saveRevenue(
   planVersionId: string,
-  clients: { entityId: string; revenueByYear: Record<number, number> }[],
+  clients: {
+    entityId: string;
+    revenueByYear: Record<number, number>;
+    seasonality: Record<number, number>; // months 1..11
+  }[],
 ): Promise<SaveRevenueResult> {
-  const rows = clients.flatMap((c) =>
+  const revRows = clients.flatMap((c) =>
     Object.entries(c.revenueByYear).map(([year, amount]) => ({
       planVersionId,
       clientId: c.entityId,
@@ -83,9 +103,29 @@ export async function saveRevenue(
       amount: Number.isFinite(amount) ? amount : 0,
     })),
   );
+
+  const seasRows: {
+    planVersionId: string;
+    clientId: string;
+    month: number;
+    weight: number;
+  }[] = [];
+  for (const c of clients) {
+    const janNov = JAN_NOV.map((m) => Number(c.seasonality[m]) || 0);
+    const dec = 100 - janNov.reduce((a, b) => a + b, 0);
+    if (dec < 0)
+      return { ok: false, error: "A seasonality curve exceeds 100% (December would be negative)." };
+    JAN_NOV.forEach((m, i) =>
+      seasRows.push({ planVersionId, clientId: c.entityId, month: m, weight: janNov[i] }),
+    );
+    seasRows.push({ planVersionId, clientId: c.entityId, month: 12, weight: dec });
+  }
+
   await prisma.$transaction([
     prisma.revenueAnnual.deleteMany({ where: { planVersionId } }),
-    prisma.revenueAnnual.createMany({ data: rows }),
+    prisma.revenueAnnual.createMany({ data: revRows }),
+    prisma.seasonalityWeight.deleteMany({ where: { planVersionId } }),
+    prisma.seasonalityWeight.createMany({ data: seasRows }),
   ]);
   revalidatePath("/plans");
   return { ok: true };
