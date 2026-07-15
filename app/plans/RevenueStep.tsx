@@ -1,7 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { getRevenueData, saveRevenue } from "./revenue-actions";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import {
+  getRevenueData,
+  saveRevenue,
+  createRevenueClient,
+  type ClientOption,
+} from "./revenue-actions";
 import styles from "./plans.module.css";
 
 const MONTHS_SHORT = [
@@ -21,10 +26,9 @@ export default function RevenueStep({
   horizonX,
 }: {
   planVersionId: string;
-  startMonth: string; // "yyyy-mm"
+  startMonth: string;
   horizonX: number;
 }) {
-  // Year columns are DERIVED from horizonX (x+1 columns) — never hardcoded.
   const cy = Number(startMonth.slice(0, 4));
   const startMonthNum = Number(startMonth.slice(5, 7));
   const isJanStart = startMonthNum === 1;
@@ -34,9 +38,18 @@ export default function RevenueStep({
   );
 
   const [rows, setRows] = useState<Row[]>([]);
+  const [activeClients, setActiveClients] = useState<ClientOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  // Draft-row (Add client) state
+  const [draftOpen, setDraftOpen] = useState(false);
+  const [draftText, setDraftText] = useState("");
+  const [draftChosenId, setDraftChosenId] = useState<string | null>(null);
+  const [comboOpen, setComboOpen] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
 
   useEffect(() => {
     let alive = true;
@@ -51,6 +64,7 @@ export default function RevenueStep({
           ),
         })),
       );
+      setActiveClients(data.activeClients);
       setLoading(false);
     });
     return () => {
@@ -60,7 +74,6 @@ export default function RevenueStep({
   }, [planVersionId]);
 
   const setCell = (i: number, year: number, raw: string) => {
-    // dollars: digits + optional single decimal point
     const v = raw.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1");
     setSaved(false);
     setRows((rs) => rs.map((r, k) => (k === i ? { ...r, revenue: { ...r.revenue, [year]: v } } : r)));
@@ -68,6 +81,59 @@ export default function RevenueStep({
 
   const totalForYear = (year: number) =>
     rows.reduce((n, r) => n + (Number(r.revenue[year]) || 0), 0);
+
+  // ── Add-client draft ────────────────────────────────────────────────────────
+  const inTable = useMemo(() => new Set(rows.map((r) => r.entityId)), [rows]);
+  const query = draftText.trim().toLowerCase();
+  const candidates = activeClients.filter(
+    (c) => !inTable.has(c.id) && c.name.toLowerCase().includes(query),
+  );
+  const exactActive = activeClients.find(
+    (c) => c.name.trim().toLowerCase() === query && query.length > 0,
+  );
+  const showCreate = query.length > 0 && !exactActive; // BL-014: archived aren't in activeClients → still "create new"
+
+  function openDraft() {
+    setDraftOpen(true);
+    setDraftText("");
+    setDraftChosenId(null);
+    setDraftError(null);
+    setComboOpen(true);
+  }
+  function closeDraft() {
+    setDraftOpen(false);
+    setComboOpen(false);
+    setDraftText("");
+    setDraftChosenId(null);
+    setDraftError(null);
+  }
+  function addRow(entityId: string, name: string) {
+    setSaved(false);
+    setRows((rs) => [...rs, { entityId, name, revenue: Object.fromEntries(years.map((y) => [y, ""])) }]);
+    closeDraft();
+  }
+  function commitDraft() {
+    setDraftError(null);
+    if (draftChosenId) {
+      if (inTable.has(draftChosenId)) return setDraftError("This client is already in the plan.");
+      addRow(draftChosenId, activeClients.find((c) => c.id === draftChosenId)?.name ?? draftText.trim());
+      return;
+    }
+    const text = draftText.trim();
+    if (!text) return setDraftError("Type a name, or pick a client.");
+    const exact = activeClients.find((c) => c.name.trim().toLowerCase() === text.toLowerCase());
+    if (exact) {
+      if (inTable.has(exact.id)) return setDraftError("This client is already in the plan.");
+      return addRow(exact.id, exact.name); // matched an existing active client — link, don't duplicate
+    }
+    // create new inline
+    startTransition(async () => {
+      const res = await createRevenueClient(text);
+      if (!res.ok) return setDraftError(res.error);
+      setActiveClients((a) => [...a, { id: res.id, name: res.name }]);
+      addRow(res.id, res.name);
+    });
+  }
 
   function onSave() {
     setSaving(true);
@@ -86,19 +152,24 @@ export default function RevenueStep({
 
   const partial = !isJanStart;
   const startMonthName = MONTHS_LONG[startMonthNum - 1];
+  const colSpanFull = years.length + 1 + 12;
 
   if (loading) return <p className={styles.note}>Loading revenue…</p>;
 
   return (
     <div>
       <div className={styles.revToolbar}>
-        <button className={styles.secondary} type="button" disabled>
+        <button className={styles.secondary} type="button" onClick={openDraft} disabled={draftOpen}>
           + Add client
         </button>
-        <span className={styles.revToolbarNote}>(client entry — next gate)</span>
         <span className={styles.revToolbarRight}>
           {saved && <span className={styles.savedTag}>Saved ✓</span>}
-          <button className={styles.primary} type="button" onClick={onSave} disabled={saving || rows.length === 0}>
+          <button
+            className={styles.primary}
+            type="button"
+            onClick={onSave}
+            disabled={saving || rows.length === 0}
+          >
             {saving ? "Saving…" : "Save revenue"}
           </button>
         </span>
@@ -125,36 +196,105 @@ export default function RevenueStep({
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
+            {rows.map((r, i) => (
+              <tr key={r.entityId}>
+                <td className={`${styles.stickyCol} ${styles.clientCell}`}>{r.name}</td>
+                {years.map((y) => (
+                  <td key={y} className={styles.revCell}>
+                    <input
+                      className={styles.revInput}
+                      type="text"
+                      inputMode="decimal"
+                      value={r.revenue[y] ?? ""}
+                      onChange={(e) => setCell(i, y, e.target.value)}
+                      aria-label={`${r.name} revenue ${y}`}
+                    />
+                  </td>
+                ))}
+                <td className={styles.gapCol} aria-hidden />
+                {MONTHS_SHORT.map((m) => (
+                  <td key={m} className={styles.seasonPlaceholder}>—</td>
+                ))}
+              </tr>
+            ))}
+
+            {/* Inline draft row — untinted; commits only on explicit "Add client". */}
+            {draftOpen && (
+              <tr className={styles.draftRow}>
+                <td className={`${styles.stickyCol} ${styles.draftCell}`}>
+                  <div className={styles.combo}>
+                    <input
+                      className={styles.comboInput}
+                      value={draftText}
+                      autoFocus
+                      placeholder="Type or pick a client…"
+                      onFocus={() => setComboOpen(true)}
+                      onBlur={() => setTimeout(() => setComboOpen(false), 120)}
+                      onChange={(e) => {
+                        setDraftText(e.target.value);
+                        setDraftChosenId(null);
+                        setComboOpen(true);
+                        setDraftError(null);
+                      }}
+                    />
+                    {comboOpen && (candidates.length > 0 || showCreate) && (
+                      <ul className={styles.comboList}>
+                        {candidates.map((c) => (
+                          <li
+                            key={c.id}
+                            className={styles.comboItem}
+                            onMouseDown={() => {
+                              setDraftChosenId(c.id);
+                              setDraftText(c.name);
+                              setComboOpen(false);
+                            }}
+                          >
+                            {c.name}
+                          </li>
+                        ))}
+                        {showCreate && (
+                          <li
+                            className={`${styles.comboItem} ${styles.comboCreate}`}
+                            onMouseDown={() => {
+                              setDraftChosenId(null);
+                              setComboOpen(false);
+                            }}
+                          >
+                            Create new client “{draftText.trim()}”
+                          </li>
+                        )}
+                      </ul>
+                    )}
+                  </div>
+                  <div className={styles.draftActions}>
+                    <button className={styles.miniPrimary} type="button" onClick={commitDraft} disabled={pending}>
+                      {pending ? "…" : "Add client"}
+                    </button>
+                    <button className={styles.miniSecondary} type="button" onClick={closeDraft}>
+                      Cancel
+                    </button>
+                  </div>
+                  {draftError && <div className={styles.warnSoft}>{draftError}</div>}
+                </td>
+                {years.map((y) => (
+                  <td key={y} className={styles.revCell}>
+                    <input className={styles.revInput} type="text" disabled placeholder="—" />
+                  </td>
+                ))}
+                <td className={styles.gapCol} aria-hidden />
+                {MONTHS_SHORT.map((m) => (
+                  <td key={m} className={styles.seasonPlaceholder}>—</td>
+                ))}
+              </tr>
+            )}
+
+            {rows.length === 0 && !draftOpen && (
               <tr>
                 <td className={styles.stickyCol}>—</td>
-                <td className={styles.emptyRow} colSpan={years.length + 1 + 12}>
+                <td className={styles.emptyRow} colSpan={colSpanFull}>
                   No clients yet. Use “Add client” to start.
                 </td>
               </tr>
-            ) : (
-              rows.map((r, i) => (
-                <tr key={r.entityId}>
-                  <td className={`${styles.stickyCol} ${styles.clientCell}`}>{r.name}</td>
-                  {years.map((y) => (
-                    <td key={y} className={styles.revCell}>
-                      <input
-                        className={styles.revInput}
-                        type="text"
-                        inputMode="decimal"
-                        value={r.revenue[y] ?? ""}
-                        onChange={(e) => setCell(i, y, e.target.value)}
-                        aria-label={`${r.name} revenue ${y}`}
-                      />
-                    </td>
-                  ))}
-                  <td className={styles.gapCol} aria-hidden />
-                  {/* Seasonality — built in Gate 3; placeholders for now. */}
-                  {MONTHS_SHORT.map((m) => (
-                    <td key={m} className={styles.seasonPlaceholder}>—</td>
-                  ))}
-                </tr>
-              ))
             )}
           </tbody>
           {rows.length > 0 && (
@@ -175,6 +315,13 @@ export default function RevenueStep({
           )}
         </table>
       </div>
+
+      <p className={styles.entityNote}>
+        New clients created here get <strong>Type = Client</strong>,{" "}
+        <strong>Payment Flow = AR</strong>, <strong>Payment Term = Statement + 30</strong>,{" "}
+        <strong>Currency = USD</strong>. You can finish their details in Master Data now or
+        any time before generating the report.
+      </p>
 
       {partial && (
         <p className={styles.footnote}>

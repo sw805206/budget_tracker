@@ -454,3 +454,93 @@
   opacity: 0.75;
   margin: 0.75rem 0 0;
 }
+
+/* ── Add-client draft row + combobox ───────────────────────────────────── */
+.draftRow td {
+  background: var(--background, #fff); /* untinted — neutral surface */
+}
+.draftCell {
+  min-width: 220px;
+}
+.combo {
+  position: relative;
+}
+.comboInput {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid rgba(128, 128, 128, 0.45);
+  border-radius: 6px;
+  background: var(--background, #fff);
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+.comboInput:focus {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+.comboList {
+  position: absolute;
+  z-index: 5;
+  left: 0;
+  right: 0;
+  margin: 2px 0 0;
+  padding: 0.25rem;
+  list-style: none;
+  max-height: 190px;
+  overflow-y: auto;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  border-radius: 8px;
+  background: var(--background, #fff);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+.comboItem {
+  padding: 0.4rem 0.5rem;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.comboItem:hover {
+  background: rgba(37, 99, 235, 0.12);
+}
+.comboCreate {
+  color: #2563eb;
+  font-weight: 550;
+  border-top: 1px solid rgba(128, 128, 128, 0.2);
+  margin-top: 0.15rem;
+}
+.draftActions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+.miniPrimary,
+.miniSecondary {
+  padding: 0.28rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-family: inherit;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.miniPrimary {
+  background: #2563eb;
+  color: #fff;
+}
+.miniPrimary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.miniSecondary {
+  background: transparent;
+  color: inherit;
+  border-color: rgba(128, 128, 128, 0.4);
+}
+.entityNote {
+  font-size: 0.8rem;
+  opacity: 0.8;
+  margin: 0.85rem 0 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px dashed rgba(128, 128, 128, 0.35);
+  border-radius: 8px;
+}
