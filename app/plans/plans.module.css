@@ -401,8 +401,19 @@
   color: #b45309;
 }
 .monthHead {
-  min-width: 44px;
+  min-width: 54px;
   opacity: 0.6;
+}
+/* Column-group header row (Revenue ($) / Seasonality (%)). */
+.groupHead {
+  text-align: center;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.5;
+  padding: 0 0 0.2rem;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
 }
 .gapCol {
   min-width: 16px;
@@ -586,15 +597,26 @@
   text-align: center;
 }
 .seasonInput {
-  width: 38px;
+  width: 32px;
   text-align: center;
-  padding: 0.3rem 0.25rem;
+  padding: 0.3rem 0.2rem;
   border: 1px solid rgba(128, 128, 128, 0.35);
   border-radius: 5px;
   background: rgba(128, 128, 128, 0.05);
   color: inherit;
   font-family: inherit;
   font-size: 0.82rem;
+}
+/* % affordance on the editable seasonality fields (consistent with Step-2 alloc). */
+.seasonPctField {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 1px;
+}
+.seasonPctSuffix {
+  font-size: 0.62rem;
+  opacity: 0.45;
 }
 .seasonInput:focus {
   outline: 2px solid #2563eb;

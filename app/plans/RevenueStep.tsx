@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -56,6 +57,71 @@ function handleDigits(
       /* ignore */
     }
   });
+}
+
+// Thousands separators for DISPLAY only (state stays raw — never persist the
+// formatted string). Handles an optional decimal part.
+function formatThousands(raw: string): string {
+  if (raw === "") return "";
+  const [intPart, decPart] = raw.split(".");
+  const intFmt = (intPart || "").replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return decPart !== undefined ? `${intFmt}.${decPart}` : intFmt;
+}
+
+// Money field: DISPLAYS comma-formatted, STORES raw (digits + one dot; never a
+// formatted string). Caret is restored in useLayoutEffect — after React re-renders
+// the reformatted value — by counting significant chars (digits/dot) before the
+// cursor, so commas never fight typing (append OR mid-string). Module-level = stable
+// component identity (no remount; PR#12 lesson).
+function MoneyInput({
+  value,
+  onChangeRaw,
+  ariaLabel,
+  className,
+}: {
+  value: string;
+  onChangeRaw: (raw: string) => void;
+  ariaLabel: string;
+  className: string;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const caretRef = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (caretRef.current != null && ref.current) {
+      const p = caretRef.current;
+      ref.current.setSelectionRange(p, p);
+      caretRef.current = null;
+    }
+  });
+  return (
+    <input
+      ref={ref}
+      className={className}
+      type="text"
+      inputMode="decimal"
+      value={formatThousands(value)}
+      aria-label={ariaLabel}
+      onChange={(e) => {
+        const el = e.target;
+        const before = el.value;
+        const caret = el.selectionStart ?? before.length;
+        const sigBeforeCaret = before.slice(0, caret).replace(/[^\d.]/g, "").length;
+        const raw = before.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1");
+        const formatted = formatThousands(raw);
+        let sig = 0;
+        let pos = formatted.length;
+        for (let i = 0; i < formatted.length; i++) {
+          if (/[\d.]/.test(formatted[i])) sig++;
+          if (sig >= sigBeforeCaret) {
+            pos = i + 1;
+            break;
+          }
+        }
+        caretRef.current = sigBeforeCaret === 0 ? 0 : pos;
+        onChangeRaw(raw);
+      }}
+    />
+  );
 }
 
 export default function RevenueStep({
@@ -142,30 +208,28 @@ export default function RevenueStep({
     return [...jn, 100 - jn.reduce((a, b) => a + b, 0)];
   };
   const rowDec = (r: Row) => 100 - JAN_NOV.reduce((n, m) => n + (Number(r.seasonality[m]) || 0), 0);
+  // Same rule as the Total row's "—": nothing to derive from → show nothing. A row
+  // whose Jan–Nov is ENTIRELY blank has no entered curve, so Dec renders blank rather
+  // than asserting Dec = 100 (a plausible-looking number nobody typed). One digit in
+  // any Jan–Nov cell → Dec computes normally. Display-only; the save mechanic is
+  // unchanged (an untouched curve still derives Dec = 100 − 0 server-side).
+  const rowSeasonEmpty = (r: Row) => JAN_NOV.every((m) => (r.seasonality[m] ?? "") === "");
 
-  // ONE function, two call sites (new-client default + Total row).
-  function weightedAvgCurve(srcRows: Row[]): number[] {
+  // Total-row seasonality = 1st-full-year revenue-weighted average of the clients'
+  // curves (DATASET §3.3). This is now the ONLY call site — the new-client default
+  // was removed (clients start with an EMPTY curve). Returns null when there are no
+  // revenue weights (wsum === 0) — nothing to average yet — so the Total row shows
+  // "—" rather than a fabricated flat default.
+  function weightedAvgCurve(srcRows: Row[]): number[] | null {
     const weights = srcRows.map((r) => Number(r.revenue[weightYear]) || 0);
     const wsum = weights.reduce((a, b) => a + b, 0);
-    if (srcRows.length === 0 || wsum === 0) return Array.from({ length: 12 }, () => 100 / 12);
+    if (wsum === 0) return null;
     const acc = Array(12).fill(0);
     srcRows.forEach((r, i) => {
       const c = rowCurve(r);
       for (let m = 0; m < 12; m++) acc[m] += weights[i] * c[m];
     });
     return acc.map((v) => v / wsum);
-  }
-  function roundTo100(curve: number[]): number[] {
-    const floors = curve.map((v) => Math.floor(v));
-    const out = [...floors];
-    const deficit = 100 - floors.reduce((a, b) => a + b, 0);
-    const order = curve.map((v, i) => ({ i, frac: v - Math.floor(v) })).sort((a, b) => b.frac - a.frac);
-    for (let k = 0; k < deficit && k < order.length; k++) out[order[k].i] += 1;
-    return out;
-  }
-  function defaultJanNov(srcRows: Row[]): Record<number, string> {
-    const ints = roundTo100(weightedAvgCurve(srcRows));
-    return Object.fromEntries(JAN_NOV.map((m, idx) => [m, String(ints[idx])]));
   }
 
   // ── Cell editing ────────────────────────────────────────────────────────────
@@ -201,7 +265,7 @@ export default function RevenueStep({
               entityId,
               name,
               revenue: Object.fromEntries(years.map((y) => [y, ""])),
-              seasonality: defaultJanNov(rs),
+              seasonality: Object.fromEntries(JAN_NOV.map((m) => [m, ""])), // EMPTY — user enters all weights
             },
           ],
     );
@@ -325,6 +389,12 @@ export default function RevenueStep({
       <div className={styles.revTableWrap}>
         <table className={styles.revTable}>
           <thead>
+            <tr className={styles.groupRow}>
+              <th className={`${styles.stickyCol} ${styles.stickyHead}`} aria-hidden />
+              <th className={styles.groupHead} colSpan={years.length}>Revenue ($)</th>
+              <th className={styles.gapCol} aria-hidden />
+              <th className={styles.groupHead} colSpan={12}>Seasonality (%)</th>
+            </tr>
             <tr>
               <th className={`${styles.stickyCol} ${styles.stickyHead}`}>Client</th>
               {years.map((y, i) => (
@@ -345,6 +415,7 @@ export default function RevenueStep({
           <tbody>
             {rows.map((r, i) => {
               const dec = rowDec(r);
+              const seasonEmpty = rowSeasonEmpty(r);
               return (
                 <tr key={r.entityId}>
                   <td className={`${styles.stickyCol} ${styles.clientCell}`}>
@@ -360,32 +431,43 @@ export default function RevenueStep({
                   </td>
                   {years.map((y) => (
                     <td key={y} className={styles.revCell}>
-                      <input
+                      <MoneyInput
                         className={styles.revInput}
-                        type="text"
-                        inputMode="decimal"
                         value={r.revenue[y] ?? ""}
-                        onChange={(e) => setRevCell(i, y, e.target.value)}
-                        aria-label={`${r.name} revenue ${y}`}
+                        onChangeRaw={(v) => setRevCell(i, y, v)}
+                        ariaLabel={`${r.name} revenue ${y}`}
                       />
                     </td>
                   ))}
                   <td className={styles.gapCol} aria-hidden />
                   {JAN_NOV.map((m) => (
                     <td key={m} className={styles.seasonCell}>
-                      <input
-                        className={styles.seasonInput}
-                        type="text"
-                        inputMode="numeric"
-                        value={r.seasonality[m] ?? ""}
-                        onChange={(e) => handleDigits(e, 3, (v) => setSeasonCell(i, m, v))}
-                        aria-label={`${r.name} ${MONTHS_SHORT[m - 1]} %`}
-                      />
+                      <span className={styles.seasonPctField}>
+                        <input
+                          className={styles.seasonInput}
+                          type="text"
+                          inputMode="numeric"
+                          value={r.seasonality[m] ?? ""}
+                          onChange={(e) => handleDigits(e, 3, (v) => setSeasonCell(i, m, v))}
+                          aria-label={`${r.name} ${MONTHS_SHORT[m - 1]} %`}
+                        />
+                        <span className={styles.seasonPctSuffix}>%</span>
+                      </span>
                     </td>
                   ))}
-                  <td className={`${styles.seasonCell} ${styles.derivedDec} ${dec < 0 ? styles.decError : ""}`}>
-                    {dec}
-                    <span className={styles.autoTag}>auto</span>
+                  <td
+                    className={`${styles.seasonCell} ${styles.derivedDec} ${
+                      !seasonEmpty && dec < 0 ? styles.decError : ""
+                    }`}
+                  >
+                    {seasonEmpty ? (
+                      ""
+                    ) : (
+                      <>
+                        {dec}
+                        <span className={styles.autoTag}>auto</span>
+                      </>
+                    )}
                   </td>
                 </tr>
               );
@@ -408,9 +490,13 @@ export default function RevenueStep({
                   <td key={y} className={styles.totalCell}>{totalForYear(y).toLocaleString()}</td>
                 ))}
                 <td className={styles.gapCol} aria-hidden />
-                {totalCurve.map((v, idx) => (
-                  <td key={idx} className={styles.totalCell}>{v.toFixed(1)}</td>
-                ))}
+                {totalCurve
+                  ? totalCurve.map((v, idx) => (
+                      <td key={idx} className={styles.totalCell}>{v.toFixed(1)}</td>
+                    ))
+                  : MONTHS_SHORT.map((m) => (
+                      <td key={m} className={styles.totalCell}>—</td>
+                    ))}
               </tr>
             </tfoot>
           )}
