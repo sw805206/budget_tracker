@@ -23,6 +23,8 @@ export type CreateResult =
 
 export type SaveResult = { ok: true } | { ok: false; error: string };
 
+export type DeleteResult = { ok: true } | { ok: false; error: string };
+
 const YYYY_MM = /^\d{4}-(0[1-9]|1[0-2])$/;
 const startMonthIsJan = (s: string) => s.slice(5, 7) === "01";
 
@@ -107,6 +109,26 @@ function validateFork(
       return `${step}: allocation must total 100% (currently ${sum}%).`;
   }
   return null;
+}
+
+// ── Delete a PlanVersion (BL-021, plans-list delete) ──────────────────────────
+// Lifecycle (Published/Draft, delete, copy, resume) is PlanVersion-level per the
+// BRD (DATASET §2/§3): the Plan is the fixed workflow card and is NEVER the delete
+// target. Deleting the version cascades to that version's OWN children only
+// (allocations, revenue, seasonality, cost lines, outputs — all ON DELETE CASCADE);
+// the Plan and its plan-level PlanStepSelection rows survive untouched, even when
+// this was the Plan's last version (a version-less Plan is a valid, permanent card).
+// No reference gate: a plan version owns its children outright — nothing to guard.
+export async function deletePlanVersion(
+  planVersionId: string,
+): Promise<DeleteResult> {
+  try {
+    await prisma.planVersion.delete({ where: { id: planVersionId } });
+  } catch {
+    return { ok: false, error: "Could not delete this plan. Please try again." };
+  }
+  revalidatePath("/plans");
+  return { ok: true };
 }
 
 export async function savePlanParameters(

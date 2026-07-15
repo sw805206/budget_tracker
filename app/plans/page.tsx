@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/app/lib/prisma";
 import { STEP_WAREHOUSE, STEP_DELIVERY } from "./constants";
+import PlanRowActions from "./PlanRowActions";
 import styles from "./plans.module.css";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +25,9 @@ export default async function PlansPage() {
       const dl = p.stepSelections.filter((s) => s.step === STEP_DELIVERY).length;
       return {
         key: v ? v.id : p.id,
+        // versionId is null for a version-less Plan row (the workflow card): it is
+        // permanent and carries no delete control. Only real versions are deletable.
+        versionId: v ? v.id : null,
         name: v?.name ?? "(no version)",
         customer: p.customer,
         startMonth: v?.startMonth ?? "—",
@@ -56,6 +60,7 @@ export default async function PlansPage() {
                 <th>Status</th>
                 <th>Horizon</th>
                 <th>Structure</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -71,6 +76,11 @@ export default async function PlansPage() {
                   </td>
                   <td>CY + {r.horizon}</td>
                   <td>{r.structure}</td>
+                  <td>
+                    {r.versionId && (
+                      <PlanRowActions planVersionId={r.versionId} status={r.status} />
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

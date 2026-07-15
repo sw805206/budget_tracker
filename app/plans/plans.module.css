@@ -113,6 +113,39 @@
   opacity: 0.85;
 }
 
+/* Row actions (BL-021 delete). Mirrors the Entity action treatment: a titled span
+   wraps the control so its tooltip shows, and errors surface inline. */
+.actionGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.btnWrap {
+  display: inline-flex; /* carries the title tooltip */
+}
+.deleteGlyph {
+  padding: 0.1rem 0.35rem;
+  border: none;
+  background: transparent;
+  color: #dc2626;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+  border-radius: 6px;
+}
+.deleteGlyph:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.1);
+}
+.deleteGlyph:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.error {
+  color: #dc2626;
+  font-size: 0.82rem;
+}
+
 /* Step indicator */
 .steps {
   list-style: none;
