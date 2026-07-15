@@ -17,6 +17,7 @@ import {
   updatePlanMeta,
   savePlanParameters,
 } from "./actions";
+import RevenueStep from "./RevenueStep";
 import styles from "./plans.module.css";
 
 const STEP_LABELS = [
@@ -437,15 +438,26 @@ export default function PlanWizard({
         </div>
       )}
 
-      {/* ── STEP 3 stub ── */}
+      {/* ── STEP 3 — Planning Assumptions: Revenue (Cost tab is future) ── */}
       {step === 3 && (
-        <div className={styles.stub}>
-          <h2 className={styles.stubTitle}>Planning Assumptions</h2>
-          <p>Revenue &amp; Cost assumption tabs — coming in the next slice.</p>
-          <div className={styles.actions}>
-            <button className={styles.secondary} onClick={() => setStep(2)}>Back</button>
-            <button className={styles.primary} onClick={() => setStep(4)}>Next</button>
-          </div>
+        <div>
+          <h2 className={styles.stubTitle}>Planning Assumptions — Revenue</h2>
+          {planVersionId ? (
+            <RevenueStep
+              planVersionId={planVersionId}
+              startMonth={startMonth}
+              horizonX={x}
+              onBack={() => setStep(2)}
+              onDone={() => setStep(4)}
+            />
+          ) : (
+            <>
+              <p className={styles.note}>Create the plan in Step 1 first.</p>
+              <div className={styles.actions}>
+                <button className={styles.secondary} onClick={() => setStep(2)}>Back</button>
+              </div>
+            </>
+          )}
         </div>
       )}
 

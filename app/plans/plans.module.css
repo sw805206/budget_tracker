@@ -324,3 +324,323 @@
   margin: 0 0 0.5rem;
   font-size: 1.15rem;
 }
+
+/* ── Revenue assumption table ──────────────────────────────────────────── */
+.revToolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.25rem 0 0.9rem;
+}
+.revToolbarNote {
+  font-size: 0.78rem;
+  opacity: 0.55;
+}
+.revToolbarRight {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.savedTag {
+  color: #15803d;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.revTableWrap {
+  overflow-x: auto;
+  border: 1px solid rgba(128, 128, 128, 0.25);
+  border-radius: 10px;
+}
+.revTable {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.revTable th,
+.revTable td {
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+  text-align: right;
+}
+/* Frozen Client column (sticky-left); its own background covers scrolled cells. */
+.stickyCol {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  text-align: left;
+  background: var(--background, #fff);
+  border-right: 1px solid rgba(128, 128, 128, 0.25);
+  min-width: 150px;
+}
+.stickyHead {
+  z-index: 2;
+  /* header dark fill — opaque (tint layered over the opaque base) */
+  background:
+    linear-gradient(rgba(128, 128, 128, 0.2), rgba(128, 128, 128, 0.2)),
+    var(--background, #fff);
+}
+.revTable thead th {
+  font-weight: 600;
+  font-size: 0.74rem;
+  opacity: 0.75;
+  vertical-align: bottom;
+}
+.yearHead {
+  min-width: 84px;
+}
+.yearTag {
+  font-size: 0.64rem;
+  opacity: 0.55;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.asterisk {
+  color: #b45309;
+}
+.monthHead {
+  min-width: 54px;
+  opacity: 0.6;
+}
+/* Column-group header row (Revenue ($) / Seasonality (%)). */
+.groupHead {
+  text-align: center;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.5;
+  padding: 0 0 0.2rem;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+}
+.gapCol {
+  min-width: 16px;
+  background: rgba(128, 128, 128, 0.05);
+  border-bottom: none;
+}
+.clientCell {
+  font-weight: 550;
+  /* surface-2 — opaque */
+  background:
+    linear-gradient(rgba(128, 128, 128, 0.05), rgba(128, 128, 128, 0.05)),
+    var(--background, #fff);
+}
+.revCell {
+  padding: 0.3rem 0.4rem;
+}
+.revInput {
+  width: 72px;
+  text-align: right;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  border-radius: 6px;
+  background: rgba(128, 128, 128, 0.05);
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+.revInput:focus {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+.emptyRow {
+  text-align: center;
+  opacity: 0.6;
+  padding: 1.5rem;
+}
+/* Shaded = derived / not editable, everywhere on this screen (surface-1). */
+.seasonPlaceholder {
+  background: rgba(128, 128, 128, 0.08);
+  color: rgba(128, 128, 128, 0.7);
+  text-align: center;
+}
+.totalRow td {
+  background: rgba(128, 128, 128, 0.08);
+  border-top: 2px solid rgba(128, 128, 128, 0.4);
+  font-weight: 600;
+}
+.totalLabel {
+  /* surface-1 — opaque (was translucent rgba → caused the bleed-through) */
+  background:
+    linear-gradient(rgba(128, 128, 128, 0.1), rgba(128, 128, 128, 0.1)),
+    var(--background, #fff);
+  border-top: 2px solid rgba(128, 128, 128, 0.4);
+}
+.totalCell {
+  font-variant-numeric: tabular-nums;
+}
+.footnote {
+  font-size: 0.8rem;
+  opacity: 0.75;
+  margin: 0.75rem 0 0;
+}
+
+/* ── Add-client draft row + combobox ───────────────────────────────────── */
+.draftRow td {
+  background: var(--background, #fff); /* untinted — neutral surface */
+}
+.draftCell {
+  min-width: 220px;
+}
+.combo {
+  position: relative;
+}
+.comboInput {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid rgba(128, 128, 128, 0.45);
+  border-radius: 6px;
+  background: var(--background, #fff);
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+.comboInput:focus {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+.comboList {
+  margin: 0.35rem 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 210px;
+  overflow-y: auto;
+}
+.comboEmpty {
+  padding: 0.45rem 0.5rem;
+  font-size: 0.82rem;
+  opacity: 0.6;
+}
+/* Add-client dropdown anchored to the button */
+.revToolbarLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-right: auto;
+}
+.addWrap {
+  position: relative;
+}
+.addDropdown {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 260px;
+  padding: 0.45rem;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  border-radius: 8px;
+  background: var(--background, #fff);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+.clientLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.comboItem {
+  padding: 0.4rem 0.5rem;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.comboItem:hover {
+  background: rgba(37, 99, 235, 0.12);
+}
+.comboCreate {
+  color: #2563eb;
+  font-weight: 550;
+  border-top: 1px solid rgba(128, 128, 128, 0.2);
+  margin-top: 0.15rem;
+}
+.draftActions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+.miniPrimary,
+.miniSecondary {
+  padding: 0.28rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-family: inherit;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.miniPrimary {
+  background: #2563eb;
+  color: #fff;
+}
+.miniPrimary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.miniSecondary {
+  background: transparent;
+  color: inherit;
+  border-color: rgba(128, 128, 128, 0.4);
+}
+.entityNote {
+  font-size: 0.8rem;
+  opacity: 0.8;
+  margin: 0.85rem 0 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px dashed rgba(128, 128, 128, 0.35);
+  border-radius: 8px;
+}
+
+/* ── Seasonality cells ─────────────────────────────────────────────────── */
+.seasonCell {
+  padding: 0.28rem 0.3rem;
+  text-align: center;
+}
+.seasonInput {
+  width: 32px;
+  text-align: center;
+  padding: 0.3rem 0.2rem;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  border-radius: 5px;
+  background: rgba(128, 128, 128, 0.05);
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.82rem;
+}
+/* % affordance on the editable seasonality fields (consistent with Step-2 alloc). */
+.seasonPctField {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 1px;
+}
+.seasonPctSuffix {
+  font-size: 0.62rem;
+  opacity: 0.45;
+}
+.seasonInput:focus {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+/* Dec = derived, read-only (shaded surface-1) with an AUTO tag. */
+.derivedDec {
+  background: rgba(128, 128, 128, 0.12);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.autoTag {
+  display: block;
+  font-size: 0.58rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  opacity: 0.5;
+}
+.decError {
+  background: rgba(220, 38, 38, 0.15);
+  color: #dc2626;
+}
+.previewCell {
+  background: rgba(128, 128, 128, 0.08);
+  color: rgba(128, 128, 128, 0.75);
+}
