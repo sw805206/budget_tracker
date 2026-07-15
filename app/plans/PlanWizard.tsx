@@ -447,14 +447,17 @@ export default function PlanWizard({
               planVersionId={planVersionId}
               startMonth={startMonth}
               horizonX={x}
+              onBack={() => setStep(2)}
+              onDone={() => setStep(4)}
             />
           ) : (
-            <p className={styles.note}>Create the plan in Step 1 first.</p>
+            <>
+              <p className={styles.note}>Create the plan in Step 1 first.</p>
+              <div className={styles.actions}>
+                <button className={styles.secondary} onClick={() => setStep(2)}>Back</button>
+              </div>
+            </>
           )}
-          <div className={styles.actions}>
-            <button className={styles.secondary} onClick={() => setStep(2)}>Back</button>
-            <button className={styles.primary} onClick={() => setStep(4)}>Next</button>
-          </div>
         </div>
       )}
 

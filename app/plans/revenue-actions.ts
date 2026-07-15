@@ -56,6 +56,22 @@ export async function getRevenueData(
   };
 }
 
+// Remove clients from THIS PlanVersion only — one transactional delete of their
+// RevenueAnnual + SeasonalityWeight rows (not N sequential). Entities are NOT
+// touched: Master Data owns entity lifecycle (PR#6).
+export async function deleteClients(
+  planVersionId: string,
+  clientIds: string[],
+): Promise<SaveRevenueResult> {
+  if (clientIds.length === 0) return { ok: true };
+  await prisma.$transaction([
+    prisma.revenueAnnual.deleteMany({ where: { planVersionId, clientId: { in: clientIds } } }),
+    prisma.seasonalityWeight.deleteMany({ where: { planVersionId, clientId: { in: clientIds } } }),
+  ]);
+  revalidatePath("/plans");
+  return { ok: true };
+}
+
 // Inline entity creation from the revenue tab: name only + fixed defaults.
 // Type=client (this is the revenue tab), Payment Flow=AR, Payment Term=Statement+30,
 // Currency=USD. May be "incomplete" is fine — the compute-gate catches it at Results.

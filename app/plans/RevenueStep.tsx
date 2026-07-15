@@ -1,10 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type ChangeEvent,
+} from "react";
 import {
   getRevenueData,
   saveRevenue,
   createRevenueClient,
+  deleteClients,
   type ClientOption,
 } from "./revenue-actions";
 import styles from "./plans.module.css";
@@ -22,18 +30,46 @@ const JAN_NOV = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 type Row = {
   entityId: string;
   name: string;
-  revenue: Record<number, string>; // year -> amount string
-  seasonality: Record<number, string>; // month 1..11 -> weight string (Dec derived)
+  revenue: Record<number, string>;
+  seasonality: Record<number, string>; // months 1..11; Dec derived
 };
+
+// Digits-only, caret-preserving (restore cursor after sanitizing — do not blindly
+// rewrite to end; avoids the Step-2 "2nd digit won't type" bug).
+function handleDigits(
+  e: ChangeEvent<HTMLInputElement>,
+  maxLen: number,
+  commit: (v: string) => void,
+) {
+  const el = e.target;
+  const raw = el.value;
+  const caret = el.selectionStart ?? raw.length;
+  const removedBeforeCaret =
+    raw.slice(0, caret).length - raw.slice(0, caret).replace(/\D/g, "").length;
+  const clean = raw.replace(/\D/g, "").slice(0, maxLen);
+  commit(clean);
+  const pos = Math.max(0, caret - removedBeforeCaret);
+  requestAnimationFrame(() => {
+    try {
+      el.setSelectionRange(pos, pos);
+    } catch {
+      /* ignore */
+    }
+  });
+}
 
 export default function RevenueStep({
   planVersionId,
   startMonth,
   horizonX,
+  onBack,
+  onDone,
 }: {
   planVersionId: string;
   startMonth: string;
   horizonX: number;
+  onBack: () => void;
+  onDone: () => void;
 }) {
   const cy = Number(startMonth.slice(0, 4));
   const startMonthNum = Number(startMonth.slice(5, 7));
@@ -42,21 +78,21 @@ export default function RevenueStep({
     () => Array.from({ length: horizonX + 1 }, (_, i) => cy + i),
     [cy, horizonX],
   );
-  // Seasonality default weight = each client's 1st-full-year revenue (CY if Jan-start, else CY+1).
   const weightYear = isJanStart ? cy : cy + 1;
 
   const [rows, setRows] = useState<Row[]>([]);
   const [activeClients, setActiveClients] = useState<ClientOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  const [draftOpen, setDraftOpen] = useState(false);
-  const [draftText, setDraftText] = useState("");
-  const [draftChosenId, setDraftChosenId] = useState<string | null>(null);
-  const [comboOpen, setComboOpen] = useState(false);
-  const [draftError, setDraftError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [checked, setChecked] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
+
+  // Add-client dropdown (anchored to the button)
+  const [addOpen, setAddOpen] = useState(false);
+  const [addText, setAddText] = useState("");
+  const [addError, setAddError] = useState<string | null>(null);
+  const addWrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let alive = true;
@@ -83,16 +119,31 @@ export default function RevenueStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planVersionId]);
 
-  // ── Seasonality math ────────────────────────────────────────────────────────
-  // A row's full 12-month curve (Dec derived = 100 − sum(Jan:Nov)).
+  // Close the add-dropdown on click-away or Escape.
+  useEffect(() => {
+    if (!addOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (addWrapRef.current && !addWrapRef.current.contains(e.target as Node)) setAddOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setAddOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [addOpen]);
+
+  // ── Seasonality math (unchanged mechanic) ───────────────────────────────────
   const rowCurve = (r: Row): number[] => {
     const jn = JAN_NOV.map((m) => Number(r.seasonality[m]) || 0);
     return [...jn, 100 - jn.reduce((a, b) => a + b, 0)];
   };
   const rowDec = (r: Row) => 100 - JAN_NOV.reduce((n, m) => n + (Number(r.seasonality[m]) || 0), 0);
 
-  // ONE function, two call sites (new-client default + Total row): the 1st-full-year
-  // revenue-weighted average of the given curves. Flat 1/12 when the weight-sum is 0.
+  // ONE function, two call sites (new-client default + Total row).
   function weightedAvgCurve(srcRows: Row[]): number[] {
     const weights = srcRows.map((r) => Number(r.revenue[weightYear]) || 0);
     const wsum = weights.reduce((a, b) => a + b, 0);
@@ -104,18 +155,14 @@ export default function RevenueStep({
     });
     return acc.map((v) => v / wsum);
   }
-  // Largest-remainder rounding of a 12-curve to integers summing to 100.
   function roundTo100(curve: number[]): number[] {
     const floors = curve.map((v) => Math.floor(v));
     const out = [...floors];
-    let deficit = 100 - floors.reduce((a, b) => a + b, 0);
-    const order = curve
-      .map((v, i) => ({ i, frac: v - Math.floor(v) }))
-      .sort((a, b) => b.frac - a.frac);
+    const deficit = 100 - floors.reduce((a, b) => a + b, 0);
+    const order = curve.map((v, i) => ({ i, frac: v - Math.floor(v) })).sort((a, b) => b.frac - a.frac);
     for (let k = 0; k < deficit && k < order.length; k++) out[order[k].i] += 1;
     return out;
   }
-  // Default Jan–Nov (integer strings) for a new client, from the existing curves.
   function defaultJanNov(srcRows: Row[]): Record<number, string> {
     const ints = roundTo100(weightedAvgCurve(srcRows));
     return Object.fromEntries(JAN_NOV.map((m, idx) => [m, String(ints[idx])]));
@@ -124,12 +171,11 @@ export default function RevenueStep({
   // ── Cell editing ────────────────────────────────────────────────────────────
   const setRevCell = (i: number, year: number, raw: string) => {
     const v = raw.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1");
-    setSaved(false);
+    setError(null);
     setRows((rs) => rs.map((r, k) => (k === i ? { ...r, revenue: { ...r.revenue, [year]: v } } : r)));
   };
-  const setSeasonCell = (i: number, month: number, raw: string) => {
-    const v = raw.replace(/\D/g, "").slice(0, 3); // integer, no spinner
-    setSaved(false);
+  const setSeasonCell = (i: number, month: number, v: string) => {
+    setError(null);
     setRows((rs) => rs.map((r, k) => (k === i ? { ...r, seasonality: { ...r.seasonality, [month]: v } } : r)));
   };
 
@@ -137,65 +183,66 @@ export default function RevenueStep({
   const anyNegativeDec = rows.some((r) => rowDec(r) < 0);
   const totalCurve = weightedAvgCurve(rows);
 
-  // ── Add-client draft ────────────────────────────────────────────────────────
+  // ── Add / delete ────────────────────────────────────────────────────────────
   const inTable = useMemo(() => new Set(rows.map((r) => r.entityId)), [rows]);
-  const query = draftText.trim().toLowerCase();
-  const candidates = activeClients.filter((c) => !inTable.has(c.id) && c.name.toLowerCase().includes(query));
-  const exactActive = activeClients.find((c) => c.name.trim().toLowerCase() === query && query.length > 0);
-  const showCreate = query.length > 0 && !exactActive;
+  const query = addText.trim().toLowerCase();
+  const options = activeClients.filter((c) => !inTable.has(c.id) && c.name.toLowerCase().includes(query));
+  const exactMatch = activeClients.find((c) => c.name.trim().toLowerCase() === query && query.length > 0);
+  const showCreate = query.length > 0 && !exactMatch;
 
-  function openDraft() {
-    setDraftOpen(true);
-    setDraftText("");
-    setDraftChosenId(null);
-    setDraftError(null);
-    setComboOpen(true);
-  }
-  function closeDraft() {
-    setDraftOpen(false);
-    setComboOpen(false);
-    setDraftText("");
-    setDraftChosenId(null);
-    setDraftError(null);
-  }
   function addRow(entityId: string, name: string) {
-    setSaved(false);
-    setRows((rs) => [
-      ...rs,
-      {
-        entityId,
-        name,
-        revenue: Object.fromEntries(years.map((y) => [y, ""])),
-        seasonality: defaultJanNov(rs), // default from the curves that exist now
-      },
-    ]);
-    closeDraft();
+    setError(null);
+    setRows((rs) =>
+      rs.some((r) => r.entityId === entityId)
+        ? rs
+        : [
+            ...rs,
+            {
+              entityId,
+              name,
+              revenue: Object.fromEntries(years.map((y) => [y, ""])),
+              seasonality: defaultJanNov(rs),
+            },
+          ],
+    );
+    setAddOpen(false);
+    setAddText("");
+    setAddError(null);
   }
-  function commitDraft() {
-    setDraftError(null);
-    if (draftChosenId) {
-      if (inTable.has(draftChosenId)) return setDraftError("This client is already in the plan.");
-      return addRow(draftChosenId, activeClients.find((c) => c.id === draftChosenId)?.name ?? draftText.trim());
-    }
-    const text = draftText.trim();
-    if (!text) return setDraftError("Type a name, or pick a client.");
-    const exact = activeClients.find((c) => c.name.trim().toLowerCase() === text.toLowerCase());
-    if (exact) {
-      if (inTable.has(exact.id)) return setDraftError("This client is already in the plan.");
-      return addRow(exact.id, exact.name);
-    }
+  function pickCreate() {
+    const text = addText.trim();
+    if (!text) return;
     startTransition(async () => {
       const res = await createRevenueClient(text);
-      if (!res.ok) return setDraftError(res.error);
+      if (!res.ok) return setAddError(res.error);
       setActiveClients((a) => [...a, { id: res.id, name: res.name }]);
       addRow(res.id, res.name);
     });
   }
 
-  function onSave() {
+  const toggleCheck = (id: string) =>
+    setChecked((s) => {
+      const next = new Set(s);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  function onDeleteChecked() {
+    if (checked.size === 0) return;
+    const ids = [...checked];
+    startTransition(async () => {
+      const res = await deleteClients(planVersionId, ids);
+      if (!res.ok) return setError(res.error);
+      setRows((rs) => rs.filter((r) => !checked.has(r.entityId)));
+      setChecked(new Set());
+    });
+  }
+
+  // ── Save & Next ─────────────────────────────────────────────────────────────
+  function onSaveNext() {
     if (anyNegativeDec) return;
-    setSaving(true);
-    setSaved(false);
+    setBusy(true);
+    setError(null);
     saveRevenue(
       planVersionId,
       rows.map((r) => ({
@@ -204,37 +251,75 @@ export default function RevenueStep({
         seasonality: Object.fromEntries(JAN_NOV.map((m) => [m, Number(r.seasonality[m]) || 0])),
       })),
     ).then((res) => {
-      setSaving(false);
-      if (res.ok) setSaved(true);
-      else setDraftError(res.error);
+      setBusy(false);
+      if (res.ok) onDone();
+      else setError(res.error);
     });
   }
 
   const partial = !isJanStart;
   const startMonthName = MONTHS_LONG[startMonthNum - 1];
   const colSpanFull = years.length + 1 + 12;
-  const draftPreview = draftOpen ? roundTo100(weightedAvgCurve(rows)) : null;
 
   if (loading) return <p className={styles.note}>Loading revenue…</p>;
 
   return (
     <div>
       <div className={styles.revToolbar}>
-        <button className={styles.secondary} type="button" onClick={openDraft} disabled={draftOpen}>
-          + Add client
-        </button>
-        <span className={styles.revToolbarRight}>
-          {anyNegativeDec && <span className={styles.sumBad}>Fix seasonality over 100% to save</span>}
-          {saved && <span className={styles.savedTag}>Saved ✓</span>}
+        <div className={styles.revToolbarLeft}>
+          <div className={styles.addWrap} ref={addWrapRef}>
+            <button
+              className={styles.secondary}
+              type="button"
+              onClick={() => {
+                setAddOpen((o) => !o);
+                setAddText("");
+                setAddError(null);
+              }}
+            >
+              + Add client
+            </button>
+            {addOpen && (
+              <div className={styles.addDropdown}>
+                <input
+                  className={styles.comboInput}
+                  value={addText}
+                  autoFocus
+                  placeholder="Filter or type a new name…"
+                  onChange={(e) => {
+                    setAddText(e.target.value);
+                    setAddError(null);
+                  }}
+                />
+                <ul className={styles.comboList}>
+                  {options.map((c) => (
+                    <li key={c.id} className={styles.comboItem} onClick={() => addRow(c.id, c.name)}>
+                      {c.name}
+                    </li>
+                  ))}
+                  {showCreate && (
+                    <li className={`${styles.comboItem} ${styles.comboCreate}`} onClick={pickCreate}>
+                      {pending ? "Creating…" : `Create new: ${addText.trim()}`}
+                    </li>
+                  )}
+                  {options.length === 0 && !showCreate && (
+                    <li className={styles.comboEmpty}>No matching clients</li>
+                  )}
+                </ul>
+                {addError && <div className={styles.warnSoft}>{addError}</div>}
+              </div>
+            )}
+          </div>
           <button
-            className={styles.primary}
+            className={styles.secondary}
             type="button"
-            onClick={onSave}
-            disabled={saving || rows.length === 0 || anyNegativeDec}
+            onClick={onDeleteChecked}
+            disabled={checked.size === 0 || pending}
           >
-            {saving ? "Saving…" : "Save revenue"}
+            Delete client{checked.size > 1 ? "s" : ""}
           </button>
-        </span>
+        </div>
+        {anyNegativeDec && <span className={styles.sumBad}>Fix seasonality over 100% to continue</span>}
       </div>
 
       <div className={styles.revTableWrap}>
@@ -262,7 +347,17 @@ export default function RevenueStep({
               const dec = rowDec(r);
               return (
                 <tr key={r.entityId}>
-                  <td className={`${styles.stickyCol} ${styles.clientCell}`}>{r.name}</td>
+                  <td className={`${styles.stickyCol} ${styles.clientCell}`}>
+                    <label className={styles.clientLabel}>
+                      <input
+                        type="checkbox"
+                        checked={checked.has(r.entityId)}
+                        onChange={() => toggleCheck(r.entityId)}
+                        aria-label={`Select ${r.name}`}
+                      />
+                      <span>{r.name}</span>
+                    </label>
+                  </td>
                   {years.map((y) => (
                     <td key={y} className={styles.revCell}>
                       <input
@@ -283,12 +378,11 @@ export default function RevenueStep({
                         type="text"
                         inputMode="numeric"
                         value={r.seasonality[m] ?? ""}
-                        onChange={(e) => setSeasonCell(i, m, e.target.value)}
+                        onChange={(e) => handleDigits(e, 3, (v) => setSeasonCell(i, m, v))}
                         aria-label={`${r.name} ${MONTHS_SHORT[m - 1]} %`}
                       />
                     </td>
                   ))}
-                  {/* Dec — derived, read-only, AUTO; error when negative. */}
                   <td className={`${styles.seasonCell} ${styles.derivedDec} ${dec < 0 ? styles.decError : ""}`}>
                     {dec}
                     <span className={styles.autoTag}>auto</span>
@@ -297,79 +391,9 @@ export default function RevenueStep({
               );
             })}
 
-            {draftOpen && (
-              <tr className={styles.draftRow}>
-                <td className={`${styles.stickyCol} ${styles.draftCell}`}>
-                  <div className={styles.combo}>
-                    <input
-                      className={styles.comboInput}
-                      value={draftText}
-                      autoFocus
-                      placeholder="Type or pick a client…"
-                      onFocus={() => setComboOpen(true)}
-                      onBlur={() => setTimeout(() => setComboOpen(false), 120)}
-                      onChange={(e) => {
-                        setDraftText(e.target.value);
-                        setDraftChosenId(null);
-                        setComboOpen(true);
-                        setDraftError(null);
-                      }}
-                    />
-                    {comboOpen && (candidates.length > 0 || showCreate) && (
-                      <ul className={styles.comboList}>
-                        {candidates.map((c) => (
-                          <li
-                            key={c.id}
-                            className={styles.comboItem}
-                            onMouseDown={() => {
-                              setDraftChosenId(c.id);
-                              setDraftText(c.name);
-                              setComboOpen(false);
-                            }}
-                          >
-                            {c.name}
-                          </li>
-                        ))}
-                        {showCreate && (
-                          <li
-                            className={`${styles.comboItem} ${styles.comboCreate}`}
-                            onMouseDown={() => {
-                              setDraftChosenId(null);
-                              setComboOpen(false);
-                            }}
-                          >
-                            Create new client “{draftText.trim()}”
-                          </li>
-                        )}
-                      </ul>
-                    )}
-                  </div>
-                  <div className={styles.draftActions}>
-                    <button className={styles.miniPrimary} type="button" onClick={commitDraft} disabled={pending}>
-                      {pending ? "…" : "Add client"}
-                    </button>
-                    <button className={styles.miniSecondary} type="button" onClick={closeDraft}>
-                      Cancel
-                    </button>
-                  </div>
-                  {draftError && <div className={styles.warnSoft}>{draftError}</div>}
-                </td>
-                {years.map((y) => (
-                  <td key={y} className={styles.revCell}>
-                    <input className={styles.revInput} type="text" disabled placeholder="—" />
-                  </td>
-                ))}
-                <td className={styles.gapCol} aria-hidden />
-                {/* Draft previews the same default curve it will get on commit. */}
-                {draftPreview!.map((v, idx) => (
-                  <td key={idx} className={`${styles.seasonCell} ${styles.previewCell}`}>{v}</td>
-                ))}
-              </tr>
-            )}
-
-            {rows.length === 0 && !draftOpen && (
+            {rows.length === 0 && (
               <tr>
-                <td className={styles.stickyCol}>—</td>
+                <td className={`${styles.stickyCol} ${styles.clientCell}`}>—</td>
                 <td className={styles.emptyRow} colSpan={colSpanFull}>
                   No clients yet. Use “Add client” to start.
                 </td>
@@ -384,7 +408,6 @@ export default function RevenueStep({
                   <td key={y} className={styles.totalCell}>{totalForYear(y).toLocaleString()}</td>
                 ))}
                 <td className={styles.gapCol} aria-hidden />
-                {/* Total seasonality = same weighted average (derived, never stored). */}
                 {totalCurve.map((v, idx) => (
                   <td key={idx} className={styles.totalCell}>{v.toFixed(1)}</td>
                 ))}
@@ -407,6 +430,22 @@ export default function RevenueStep({
           {startMonthName}–December only.
         </p>
       )}
+
+      {error && <p className={styles.error}>{error}</p>}
+
+      <div className={styles.actions}>
+        <button className={styles.secondary} type="button" onClick={onBack} disabled={busy}>
+          Back
+        </button>
+        <button
+          className={styles.primary}
+          type="button"
+          onClick={onSaveNext}
+          disabled={busy || anyNegativeDec}
+        >
+          {busy ? "Saving…" : "Save & Next"}
+        </button>
+      </div>
     </div>
   );
 }
