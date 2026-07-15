@@ -113,6 +113,58 @@
   opacity: 0.85;
 }
 
+/* Row actions (BL-021 delete). Mirrors the Entity action treatment: a titled span
+   wraps the control so its tooltip shows, and errors surface inline. */
+.actionGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.btnWrap {
+  display: inline-flex; /* carries the title tooltip */
+}
+/* Row-action glyphs (BL-021 delete, BL-019 resume). Neutral at rest — muted
+   foreground, matching the app's muted-text convention (no --text-muted token
+   exists; th/.note use foreground at reduced opacity). Colour + fill appear only on
+   hover. ~24px rounded square hover target. Labels are hover-only via the wrapping
+   span's title (EntityActions precedent). */
+.rowGlyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--foreground);
+  opacity: 0.55;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+}
+.rowGlyph:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+/* Resume hover: normal text colour + neutral faint fill. */
+.resumeGlyph:hover:not(:disabled) {
+  opacity: 1;
+  background: rgba(128, 128, 128, 0.12);
+}
+/* Delete hover: destructive red + red-tinted fill. */
+.deleteGlyph:hover:not(:disabled) {
+  opacity: 1;
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.1);
+}
+.error {
+  color: #dc2626;
+  font-size: 0.82rem;
+}
+
 /* Step indicator */
 .steps {
   list-style: none;

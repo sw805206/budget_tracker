@@ -23,6 +23,8 @@ export type CreateResult =
 
 export type SaveResult = { ok: true } | { ok: false; error: string };
 
+export type DeleteResult = { ok: true } | { ok: false; error: string };
+
 const YYYY_MM = /^\d{4}-(0[1-9]|1[0-2])$/;
 const startMonthIsJan = (s: string) => s.slice(5, 7) === "01";
 
@@ -107,6 +109,105 @@ function validateFork(
       return `${step}: allocation must total 100% (currently ${sum}%).`;
   }
   return null;
+}
+
+// ── Delete a PlanVersion (BL-021, plans-list delete) ──────────────────────────
+// Lifecycle (Published/Draft, delete, copy, resume) is PlanVersion-level per the
+// BRD (DATASET §2/§3): the Plan is the fixed workflow card and is NEVER the delete
+// target. Deleting the version cascades to that version's OWN children only
+// (allocations, revenue, seasonality, cost lines, outputs — all ON DELETE CASCADE);
+// the Plan and its plan-level PlanStepSelection rows survive untouched, even when
+// this was the Plan's last version (a version-less Plan is a valid, permanent card).
+// No reference gate: a plan version owns its children outright — nothing to guard.
+export async function deletePlanVersion(
+  planVersionId: string,
+): Promise<DeleteResult> {
+  try {
+    await prisma.planVersion.delete({ where: { id: planVersionId } });
+  } catch {
+    return { ok: false, error: "Could not delete this plan. Please try again." };
+  }
+  revalidatePath("/plans");
+  return { ok: true };
+}
+
+// ── Resume: persist wizard step + load a Draft back into the wizard (BL-019) ─────
+
+// Single writer for PlanVersion.lastStep. Called ONLY from the wizard's step-change
+// effect (never from the CRUD actions) — one choke-point so a future navigation path
+// cannot silently skip the write. Best-effort progress tracking: no revalidate (no
+// list refetch needed), and failures are swallowed rather than shown to the user.
+export async function updateLastStep(
+  planVersionId: string,
+  step: number,
+): Promise<void> {
+  if (!Number.isInteger(step) || step < 1 || step > 4) return;
+  try {
+    await prisma.planVersion.update({
+      where: { id: planVersionId },
+      data: { lastStep: step },
+    });
+  } catch {
+    /* progress tracking is non-critical; never surface */
+  }
+}
+
+export type ResumeData = {
+  planVersionId: string;
+  startStep: number; // lastStep ?? 1 (null = legacy Draft that predates the column)
+  status: string;
+  name: string;
+  startMonth: string;
+  horizonX: number;
+  warehouseSelections: string[];
+  deliverySelections: string[];
+  beginningCash: string;
+  targetCashValue: string;
+  targetCashMode: TargetCashMode;
+  allocations: Record<string, string>; // flow -> percent (string, for the number inputs)
+};
+
+// Loads a Draft's meta + Step-2 params so the wizard can reopen it WITHOUT creating a
+// new plan and WITHOUT rendering defaults (which a Save would persist over real data).
+// Deliberately does NOT read revenue/seasonality rows: Step 3 (RevenueStep) self-loads
+// those via getRevenueData(planVersionId). Keeping the two loaders on disjoint data
+// avoids a double-fetch/race on the same revenue rows.
+export async function getResumeData(
+  planVersionId: string,
+): Promise<ResumeData | null> {
+  const pv = await prisma.planVersion.findUnique({
+    where: { id: planVersionId },
+    include: {
+      plan: { include: { stepSelections: true } },
+      allocations: true,
+    },
+  });
+  if (!pv) return null;
+
+  const warehouseSelections = pv.plan.stepSelections
+    .filter((s) => s.step === STEP_WAREHOUSE)
+    .map((s) => s.option);
+  const deliverySelections = pv.plan.stepSelections
+    .filter((s) => s.step === STEP_DELIVERY)
+    .map((s) => s.option);
+
+  const allocations: Record<string, string> = {};
+  for (const a of pv.allocations) allocations[a.flow] = String(Number(a.percentage));
+
+  return {
+    planVersionId: pv.id,
+    startStep: pv.lastStep ?? 1,
+    status: pv.status,
+    name: pv.name,
+    startMonth: pv.startMonth,
+    horizonX: pv.horizonX,
+    warehouseSelections,
+    deliverySelections,
+    beginningCash: String(Number(pv.beginningCash)),
+    targetCashValue: String(Number(pv.targetCashValue)),
+    targetCashMode: pv.targetCashMode as TargetCashMode,
+    allocations,
+  };
 }
 
 export async function savePlanParameters(
