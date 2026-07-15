@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -33,6 +33,125 @@ const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
+
+// Digits-only, caret-preserving sanitizer — restores the cursor after sanitizing
+// (matches RevenueStep). Prevents the caret jumping on multi-digit entry.
+function handleDigits(
+  e: ChangeEvent<HTMLInputElement>,
+  maxLen: number,
+  commit: (v: string) => void,
+) {
+  const el = e.target;
+  const raw = el.value;
+  const caret = el.selectionStart ?? raw.length;
+  const removedBeforeCaret =
+    raw.slice(0, caret).length - raw.slice(0, caret).replace(/\D/g, "").length;
+  const clean = raw.replace(/\D/g, "").slice(0, maxLen);
+  commit(clean);
+  const pos = Math.max(0, caret - removedBeforeCaret);
+  requestAnimationFrame(() => {
+    try {
+      el.setSelectionRange(pos, pos);
+    } catch {
+      /* ignore */
+    }
+  });
+}
+
+// Per-fork allocation (rule A): canonical option order; first N−1 fields editable,
+// the LAST is a read-only derived remainder = 100 − sum(others). A fork is valid
+// unless that remainder goes negative (others already exceed 100).
+function forkParts(
+  options: readonly string[],
+  selected: string[],
+  alloc: Record<string, string>,
+) {
+  const ordered = options.filter((o) => selected.includes(o)); // canonical order
+  const editable = ordered.slice(0, -1);
+  const last = ordered[ordered.length - 1];
+  const derived = 100 - editable.reduce((n, f) => n + (Number(alloc[f]) || 0), 0);
+  return { ordered, editable, last, derived };
+}
+
+// Allocation sub-UI for a fork (shown only when >1 selected). MODULE-LEVEL (stable
+// component identity) so it does NOT remount on every keystroke — that remount, from
+// defining this inside the render, was the caret/focus-loss bug.
+function AllocBlock({
+  label,
+  options,
+  selected,
+  alloc,
+  setAlloc,
+}: {
+  label: string;
+  options: readonly string[];
+  selected: string[];
+  alloc: Record<string, string>;
+  setAlloc: (updater: (a: Record<string, string>) => Record<string, string>) => void;
+}) {
+  const { editable, last, derived } = forkParts(options, selected, alloc);
+  const over = derived < 0;
+  return (
+    <div className={styles.allocBlock}>
+      <div className={styles.allocHead}>
+        {label} allocation %{" "}
+        {over ? (
+          <span className={styles.sumBad}>(over 100% by {Math.abs(derived)}%)</span>
+        ) : (
+          <span className={styles.sumOk}>(auto-balances to 100%)</span>
+        )}
+      </div>
+      {editable.map((f) => {
+        const raw = alloc[f] ?? "";
+        const isZero = raw !== "" && Number(raw) === 0; // SOFT: explicit 0
+        return (
+          <div key={f} className={styles.allocField}>
+            <label className={styles.allocRow}>
+              <span>{f}</span>
+              {/* Plain integer entry (no spinners) with a % affordance. */}
+              <span className={styles.pctField}>
+                <input
+                  className={styles.pctInput}
+                  type="text"
+                  inputMode="numeric"
+                  value={raw}
+                  onChange={(e) =>
+                    handleDigits(e, 3, (v) => setAlloc((a) => ({ ...a, [f]: v })))
+                  }
+                  aria-label={`${f} allocation percent`}
+                />
+                <span className={styles.pctSuffix}>%</span>
+              </span>
+            </label>
+            {isZero && (
+              <span className={styles.warnSoft}>
+                0% — deselect this option instead?
+              </span>
+            )}
+          </div>
+        );
+      })}
+      {/* Last selected flow (canonical order) — read-only derived remainder. */}
+      <label className={styles.allocRow}>
+        <span>
+          {last} <span className={styles.derivedTag}>auto</span>
+        </span>
+        <input
+          className={`${styles.smallInput} ${styles.derivedInput} ${over ? styles.fieldError : ""}`}
+          type="number"
+          value={derived}
+          readOnly
+          aria-label={`${last} — auto-calculated remainder`}
+        />
+      </label>
+      {over && (
+        <span className={styles.warn}>
+          Total exceeds 100% — reduce the other fields to free up the remainder.
+        </span>
+      )}
+    </div>
+  );
+}
 
 export default function PlanWizard({
   defaultName,
@@ -77,22 +196,10 @@ export default function PlanWizard({
     Number.isInteger(x) && x >= HORIZON_MIN && x <= HORIZON_MAX;
   const horizonFullYearErr = !startIsJan && x === 0;
 
-  // Per-fork allocation (rule A): canonical option order; first N−1 fields editable,
-  // the LAST is a read-only derived remainder = 100 − sum(others). A fork is valid
-  // unless that remainder goes negative (others already exceed 100).
-  const sumOf = (flows: string[]) =>
-    flows.reduce((n, f) => n + (Number(alloc[f]) || 0), 0);
-  const forkParts = (options: readonly string[], selected: string[]) => {
-    const ordered = options.filter((o) => selected.includes(o)); // canonical order
-    const editable = ordered.slice(0, -1);
-    const last = ordered[ordered.length - 1];
-    const derived = 100 - sumOf(editable);
-    return { ordered, editable, last, derived };
-  };
   const whNeedsAlloc = warehouse.length > 1;
   const dlNeedsAlloc = delivery.length > 1;
-  const whAllocOk = !whNeedsAlloc || forkParts(WAREHOUSE, warehouse).derived >= 0;
-  const dlAllocOk = !dlNeedsAlloc || forkParts(DELIVERY, delivery).derived >= 0;
+  const whAllocOk = !whNeedsAlloc || forkParts(WAREHOUSE, warehouse, alloc).derived >= 0;
+  const dlAllocOk = !dlNeedsAlloc || forkParts(DELIVERY, delivery, alloc).derived >= 0;
 
   const step2Ok =
     horizonValid &&
@@ -131,7 +238,7 @@ export default function PlanWizard({
     if (!step2Ok) return setError("Fix the highlighted fields before continuing.");
     // Canonical-ordered rows; the derived last value is written like any other row.
     const allocRows = (options: readonly string[], selected: string[]) => {
-      const { editable, last, derived } = forkParts(options, selected);
+      const { editable, last, derived } = forkParts(options, selected, alloc);
       return [
         ...editable.map((f) => ({ flow: f, percentage: Number(alloc[f]) || 0 })),
         { flow: last, percentage: derived },
@@ -152,83 +259,6 @@ export default function PlanWizard({
       setStep(3);
     });
   }
-
-  // ── Allocation sub-UI for a fork (shown only when >1 selected) ───────────────
-  const AllocBlock = ({
-    label,
-    options,
-    selected,
-  }: {
-    label: string;
-    options: readonly string[];
-    selected: string[];
-  }) => {
-    const { editable, last, derived } = forkParts(options, selected);
-    const over = derived < 0;
-    return (
-      <div className={styles.allocBlock}>
-        <div className={styles.allocHead}>
-          {label} allocation %{" "}
-          {over ? (
-            <span className={styles.sumBad}>(over 100% by {Math.abs(derived)}%)</span>
-          ) : (
-            <span className={styles.sumOk}>(auto-balances to 100%)</span>
-          )}
-        </div>
-        {editable.map((f) => {
-          const raw = alloc[f] ?? "";
-          const isZero = raw !== "" && Number(raw) === 0; // SOFT: explicit 0
-          return (
-            <div key={f} className={styles.allocField}>
-              <label className={styles.allocRow}>
-                <span>{f}</span>
-                {/* Plain integer entry (no spinners) with a % affordance. */}
-                <span className={styles.pctField}>
-                  <input
-                    className={styles.pctInput}
-                    type="text"
-                    inputMode="numeric"
-                    value={raw}
-                    onChange={(e) =>
-                      setAlloc((a) => ({
-                        ...a,
-                        [f]: e.target.value.replace(/\D/g, "").slice(0, 3),
-                      }))
-                    }
-                    aria-label={`${f} allocation percent`}
-                  />
-                  <span className={styles.pctSuffix}>%</span>
-                </span>
-              </label>
-              {isZero && (
-                <span className={styles.warnSoft}>
-                  0% — deselect this option instead?
-                </span>
-              )}
-            </div>
-          );
-        })}
-        {/* Last selected flow (canonical order) — read-only derived remainder. */}
-        <label className={styles.allocRow}>
-          <span>
-            {last} <span className={styles.derivedTag}>auto</span>
-          </span>
-          <input
-            className={`${styles.smallInput} ${styles.derivedInput} ${over ? styles.fieldError : ""}`}
-            type="number"
-            value={derived}
-            readOnly
-            aria-label={`${last} — auto-calculated remainder`}
-          />
-        </label>
-        {over && (
-          <span className={styles.warn}>
-            Total exceeds 100% — reduce the other fields to free up the remainder.
-          </span>
-        )}
-      </div>
-    );
-  };
 
   return (
     <div className={styles.page}>
@@ -342,7 +372,9 @@ export default function PlanWizard({
                 </label>
               ))}
             </div>
-            {whNeedsAlloc && <AllocBlock label="Warehouse Operations" options={WAREHOUSE} selected={warehouse} />}
+            {whNeedsAlloc && (
+              <AllocBlock label="Warehouse Operations" options={WAREHOUSE} selected={warehouse} alloc={alloc} setAlloc={setAlloc} />
+            )}
           </div>
 
           <div className={styles.field}>
@@ -359,7 +391,9 @@ export default function PlanWizard({
                 </label>
               ))}
             </div>
-            {dlNeedsAlloc && <AllocBlock label="Delivery Options" options={DELIVERY} selected={delivery} />}
+            {dlNeedsAlloc && (
+              <AllocBlock label="Delivery Options" options={DELIVERY} selected={delivery} alloc={alloc} setAlloc={setAlloc} />
+            )}
           </div>
 
           <label className={styles.field}>
