@@ -81,6 +81,13 @@ model PlanVersion {
   publishedAt     DateTime? // set when status -> Published
 
   // Version parameters / inputs (§3.2)
+  // Wizard resume (BL-019): the step (1..4) the user last VIEWED, so the Plans-list
+  // resume control can reopen the Draft at the right step. Ordinal, not a catalog
+  // value → Int. Nullable with NO default on purpose: NULL = "never tracked" (every
+  // Draft predating this column), which the resume path maps to Step 1. Written by a
+  // single choke-point effect on the wizard's step state (never in the CRUD actions),
+  // and decreases on back-navigation (current step, not a high-water mark).
+  lastStep      Int?
   startMonth    String // "yyyy-mm"; CY = startMonth -> December
   horizonX      Int     @default(3) // full years after CY; range 0-10 (validated in app)
   bucket        String  @default("monthly") // "monthly" (Ph1) | "quarterly" | "annual"

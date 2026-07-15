@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition, type ChangeEvent } from "react";
+import { useEffect, useState, useTransition, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -16,6 +16,8 @@ import {
   createDraftPlan,
   updatePlanMeta,
   savePlanParameters,
+  updateLastStep,
+  type ResumeData,
 } from "./actions";
 import RevenueStep from "./RevenueStep";
 import styles from "./plans.module.css";
@@ -157,29 +159,59 @@ function AllocBlock({
 export default function PlanWizard({
   defaultName,
   defaultStartMonth,
+  resume,
 }: {
   defaultName: string;
   defaultStartMonth: string;
+  // When present, the wizard reopens an existing Draft (BL-019 resume) instead of
+  // creating a new plan: state is seeded from the saved version and it opens at
+  // resume.startStep. Absent = Create-New (all defaults, Step 1, no planVersionId).
+  resume?: ResumeData;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const [step, setStep] = useState(1);
-  const [planVersionId, setPlanVersionId] = useState<string | null>(null);
+  const [step, setStep] = useState(resume?.startStep ?? 1);
+  const [planVersionId, setPlanVersionId] = useState<string | null>(
+    resume?.planVersionId ?? null,
+  );
 
   // Step 1
-  const [name, setName] = useState(defaultName);
-  const [startMonth, setStartMonth] = useState(defaultStartMonth);
+  const [name, setName] = useState(resume?.name ?? defaultName);
+  const [startMonth, setStartMonth] = useState(
+    resume?.startMonth ?? defaultStartMonth,
+  );
 
   // Step 2
-  const [horizonX, setHorizonX] = useState(String(HORIZON_DEFAULT));
-  const [warehouse, setWarehouse] = useState<string[]>([]);
-  const [delivery, setDelivery] = useState<string[]>([]);
-  const [beginningCash, setBeginningCash] = useState("0");
-  const [targetCashValue, setTargetCashValue] = useState("0");
-  const [targetCashMode, setTargetCashMode] = useState<TargetCashMode>("dollars");
-  const [alloc, setAlloc] = useState<Record<string, string>>({}); // flow -> percent string
+  const [horizonX, setHorizonX] = useState(
+    String(resume?.horizonX ?? HORIZON_DEFAULT),
+  );
+  const [warehouse, setWarehouse] = useState<string[]>(
+    resume?.warehouseSelections ?? [],
+  );
+  const [delivery, setDelivery] = useState<string[]>(
+    resume?.deliverySelections ?? [],
+  );
+  const [beginningCash, setBeginningCash] = useState(resume?.beginningCash ?? "0");
+  const [targetCashValue, setTargetCashValue] = useState(
+    resume?.targetCashValue ?? "0",
+  );
+  const [targetCashMode, setTargetCashMode] = useState<TargetCashMode>(
+    resume?.targetCashMode ?? "dollars",
+  );
+  const [alloc, setAlloc] = useState<Record<string, string>>(
+    resume?.allocations ?? {},
+  ); // flow -> percent string
+
+  // Single choke-point that persists wizard progress (BL-019). EVERY step transition
+  // — NEXT, BACK, and RevenueStep's Save & Next — funnels through the `step` state, so
+  // one effect on it covers them all; no navigation path can silently skip the write.
+  // Skips while planVersionId is null (Step 1 before the Draft exists). Runs once on a
+  // resume mount too (idempotent — writes the same step back).
+  useEffect(() => {
+    if (planVersionId) void updateLastStep(planVersionId, step);
+  }, [step, planVersionId]);
 
   const toggle = (list: string[], set: (v: string[]) => void, opt: string) =>
     set(list.includes(opt) ? list.filter((o) => o !== opt) : [...list, opt]);
@@ -266,7 +298,9 @@ export default function PlanWizard({
       <div className={styles.breadcrumb}>
         <Link href="/plans">← All plans</Link>
       </div>
-      <h1 className={styles.h1}>New plan — WF-001 (Create New)</h1>
+      <h1 className={styles.h1}>
+        {resume ? "Resume plan — WF-001" : "New plan — WF-001 (Create New)"}
+      </h1>
 
       {/* Step indicator */}
       <ol className={styles.steps}>

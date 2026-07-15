@@ -21,6 +21,12 @@ export default function PlanRowActions({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
+  // Resume is Draft-only (BL-019). Published rows render NO resume glyph at all — not a
+  // disabled one — since a Published version is immutable.
+  const isDraft = status === "Draft";
+
+  const onResume = () => router.push(`/plans/resume/${planVersionId}`);
+
   const onDelete = () => {
     if (status === "Published" && !window.confirm(PUBLISHED_CONFIRM)) return;
     setError(null);
@@ -33,11 +39,24 @@ export default function PlanRowActions({
 
   return (
     <span className={styles.actionGroup}>
-      {/* Glyph in a titled span so the tooltip shows (Entity precedent). */}
+      {/* Resume — first position, Draft only. Glyph in a titled span (hover label). */}
+      {isDraft && (
+        <span className={styles.btnWrap} title="Resume">
+          <button
+            type="button"
+            className={`${styles.rowGlyph} ${styles.resumeGlyph}`}
+            onClick={onResume}
+            aria-label="Resume"
+          >
+            ↺
+          </button>
+        </span>
+      )}
+      {/* Delete — always last/rightmost. */}
       <span className={styles.btnWrap} title="Delete">
         <button
           type="button"
-          className={styles.deleteGlyph}
+          className={`${styles.rowGlyph} ${styles.deleteGlyph}`}
           onClick={onDelete}
           disabled={pending}
           aria-label="Delete"
